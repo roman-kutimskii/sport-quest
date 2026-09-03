@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ReportKind {
+  ACTIVITY
+  BINGO
+  STEPS
+}
+
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AwardType {
+  STREAK_3
+  STREAK_5
+  STREAK_7
+}
+
+model User {
+  id             String       @id @default(cuid())
+  name           String
+  avatarEmoji    String       @default("🏃")
+  telegramHandle String?
+  isAdmin        Boolean      @default(false)
+  isActive       Boolean      @default(true)
+  inviteToken    String       @unique @default(cuid())
+  createdAt      DateTime     @default(now())
+  reports        Report[]
+  adjustments    Adjustment[]
+  reviewed       Report[]     @relation("Reviewer")
+}
+
+model Quest {
+  id          String   @id @default(cuid())
+  title       String
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  timezone    String   @default("Europe/Moscow")
+  autoApprove Boolean  @default(true)
+  resultsPublished Boolean @default(false)
+  isActive    Boolean  @default(true)
+  reports     Report[]
+  adjustments Adjustment[]
+  nominations NominationResult[]
+}
+
+model Report {
+  id           String       @id @default(cuid())
+  userId       String
+  questId      String
+  kind         ReportKind
+  date         DateTime     @db.Date
+  activityType String?
+  bingoKey     String?
+  steps        Int?
+  durationMin  Int?
+  comment      String?
+  proofUrl     String?
+  status       ReportStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  rejectReason String?
+  createdAt    DateTime     @default(now())
+
+  user       User  @relation(fields: [userId], references: [id])
+  quest      Quest @relation(fields: [questId], references: [id])
+  reviewedBy User? @relation("Reviewer", fields: [reviewedById], references: [id])
+
+  @@index([userId, questId, date])
+  @@index([questId, status])
+}
+
+model Adjustment {
+  id        String   @id @default(cuid())
+  userId    String
+  questId   String
+  delta     Int
+  comment   String
+  createdBy String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  quest     Quest    @relation(fields: [questId], references: [id])
+}
+
+model NominationResult {
+  id          String   @id @default(cuid())
+  questId     String
+  key         String
+  userId      String
+  isManual    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  quest       Quest    @relation(fields: [questId], references: [id])
+
+  @@unique([questId, key])
+}

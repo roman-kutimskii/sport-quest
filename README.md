@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎃 Sport Quest — трекер «Операция „Анти-плед“»
 
-## Getting Started
+Онлайн-трекер осеннего спортивного квеста: участники записывают активности и задания бинго,
+приложение само считает тыковки, стрики и таблицу лидеров. Спецификация — в [SPEC.md](SPEC.md).
 
-First, run the development server:
+## Стек
+Next.js 16 (App Router, Server Actions) · TypeScript · Tailwind v4 · Prisma 7 · PostgreSQL (Docker) · Vitest.
+
+## Запуск локально
+Требуются Node (через fnm) и Docker (Colima).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+eval "$(fnm env)" && npm install
+docker compose up -d              # Postgres на localhost:5433
+cp .env.example .env              # при первом запуске
+npm run db:migrate                # применяет миграции и запускает seed
+npm run dev                       # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Seed создаёт квест, админа «Роман» и трёх тестовых участников и печатает их ссылки-приглашения.
+Повторный `npm run db:seed` пересоздаёт отчёты тестовых участников, но сохраняет токены.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Как это работает
+- **Вход** — без паролей: у каждого участника личная ссылка `/join/<token>`. Ссылки видны в админке,
+  там же создаются новые участники.
+- **Отчёт** (`/log`) — дата, тип активности, шаги, длительность, фото/видео, опционально задание бинго.
+  При `autoApprove` (по умолчанию включён) отчёт засчитывается сразу; иначе попадает в очередь модерации.
+- **Подсчёт** — чистая функция `computeScore` в `src/lib/scoring/` пересчитывает всё из отчётов на каждый запрос.
+  Правила и тесты там же (`npm test`).
+- **Админка** (`/admin`) — модерация, участники, ручные корректировки баллов, номинации, настройки.
+- **Итоги** (`/results`) — открываются после 30 ноября или по флагу «Опубликовать итоги».
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Загрузки хранятся в `./uploads` (переменная `UPLOAD_DIR`) и отдаются только авторизованным.
 
-## Learn More
+## Скрипты
+| Команда | Что делает |
+|---|---|
+| `npm run dev` | dev-сервер |
+| `npm test` | vitest (движок подсчёта) |
+| `npm run lint` | eslint |
+| `npm run db:migrate` | prisma migrate dev + seed |
+| `npm run db:seed` | только seed |
+| `npm run db:studio` | Prisma Studio |
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Принятые допущения (уточнить у организатора)
+См. раздел «Open Questions» в SPEC.md. По умолчанию: бонусы за стрик суммируются (7 дней = +17) и счётчик
+обнуляется после 7; бинго само по себе не делает день активным; 10 000+ шагов делают день активным.
