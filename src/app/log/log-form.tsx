@@ -18,7 +18,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
   const dayActive = activeDays.includes(date);
 
   return (
-    <form action={action} className="card space-y-6 p-5" encType="multipart/form-data">
+    <form action={action} className="card space-y-6 p-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="date">Дата</label>
