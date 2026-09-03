@@ -1,0 +1,15 @@
+{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 60MB
+	}
+	reverse_proxy app:3000
+}
+
+# Plain-HTTP fallback on the raw IP, useful before DNS is live.
+http://{$SERVER_IP} {
+	request_body {
+		max_size 60MB
+	}
+	reverse_proxy app:3000
+}

@@ -45,3 +45,24 @@ Seed создаёт квест, админа «Роман» и трёх тест
 ## Принятые допущения (уточнить у организатора)
 См. раздел «Open Questions» в SPEC.md. По умолчанию: бонусы за стрик суммируются (7 дней = +17) и счётчик
 обнуляется после 7; бинго само по себе не делает день активным; 10 000+ шагов делают день активным.
+
+## Деплой на VPS (tl-sport.ru)
+Продакшен — один сервер с Docker Compose: `compose.prod.yml` поднимает Postgres, приложение и Caddy
+(автоматический HTTPS для `DOMAIN`, плюс HTTP-фолбэк на голый IP).
+
+Разово на сервере: установить Docker, создать `/opt/sport-quest/.env.prod` по образцу `.env.prod.example`
+(сгенерировать `POSTGRES_PASSWORD` и `SESSION_SECRET` через `openssl rand -hex 32`).
+
+Каждый деплой с ноутбука:
+```bash
+./deploy.sh              # rsync → docker compose up --build → prisma migrate deploy
+```
+
+Первый запуск — создать квест и админа (без тестовых участников):
+```bash
+ssh root@82.146.60.122 'cd /opt/sport-quest && docker compose -f compose.prod.yml --env-file .env.prod run --rm tools npx tsx prisma/seed.ts'
+```
+Команда печатает ссылку-приглашение админа. Дальше участники добавляются в админке.
+
+Бэкап: `docker compose -f compose.prod.yml --env-file .env.prod exec db pg_dump -U sportquest sportquest > backup.sql`
+и volume `uploads`.

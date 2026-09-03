@@ -89,7 +89,8 @@ async function main() {
   const admin = await upsertUser("Роман", "👑", true);
   const users = [admin];
 
-  for (const p of participants) {
+  const withSamples = process.env.SEED_SAMPLES !== "0";
+  for (const p of withSamples ? participants : []) {
     const user = await upsertUser(p.name, p.avatarEmoji);
     users.push(user);
 
@@ -127,7 +128,7 @@ async function main() {
   const reportCount = await prisma.report.count({ where: { questId: quest.id } });
   console.log(`Quest "${quest.title}" (${quest.id}) — ${reportCount} reports\n`);
   for (const u of users) {
-    console.log(`${u.name}${u.isAdmin ? " (admin)" : ""}: http://localhost:3000/join/${u.inviteToken}`);
+    console.log(`${u.name}${u.isAdmin ? " (admin)" : ""}: ${process.env.PUBLIC_URL ?? "http://localhost:3000"}/join/${u.inviteToken}`);
   }
 }
 
