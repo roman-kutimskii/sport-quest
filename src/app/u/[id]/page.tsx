@@ -8,6 +8,7 @@ import { Invulnerable, Pumpkins, StreakBadge } from "@/components/pumpkins";
 import { QuestCalendar } from "@/components/calendar";
 import { Proofs } from "@/components/proof";
 import { deleteOwnReport } from "@/app/log/actions";
+import { ProfileForm } from "./profile-form";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,12 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
           <Stat label="Корректировки" value={`${score.adjustments >= 0 ? "+" : ""}${score.adjustments} 🎃`} />
           <Stat label="Шаги" value={score.totalSteps.toLocaleString("ru-RU")} />
         </dl>
-        {isMe && <Link href="/log" className="btn-primary mt-5 w-full sm:w-auto">＋ Записать отчёт</Link>}
+        {isMe && (
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <Link href="/log" className="btn-primary w-full border border-transparent sm:w-auto">＋ Записать отчёт</Link>
+            <ProfileForm name={user.name} avatarEmoji={user.avatarEmoji} />
+          </div>
+        )}
       </section>
 
       <section className="card p-5">
