@@ -1,9 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
+import { Proof } from "@/components/proof";
 import { castVote, type VoteState } from "./actions";
 
-type Candidate = { id: string; name: string; avatarEmoji: string };
+type Candidate = { id: string; name: string; avatarEmoji: string; mediaCount: number; preview: string[] };
 
 export function VoteForm({ candidates, current }: { candidates: Candidate[]; current: string | null }) {
   const [choice, setChoice] = useState<string | null>(current);
@@ -14,20 +16,32 @@ export function VoteForm({ candidates, current }: { candidates: Candidate[]; cur
     <form action={action} className="space-y-4">
       <fieldset>
         <legend className="sr-only">Кандидаты</legend>
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid gap-3 sm:grid-cols-2">
           {candidates.map((c) => {
             const selected = choice === c.id;
             return (
-              <button
-                key={c.id} type="button" onClick={() => setChoice(c.id)} aria-pressed={selected}
-                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition ${
-                  selected ? "border-accent bg-accent-soft" : "border-line bg-elev hover:bg-muted"
-                }`}
+              <div
+                key={c.id}
+                className={`rounded-xl border p-3 transition ${selected ? "border-accent bg-accent-soft" : "border-line bg-elev"}`}
               >
-                <span className="text-2xl" aria-hidden>{c.avatarEmoji}</span>
-                <span className="flex-1 font-semibold">{c.name}</span>
-                {selected && <span aria-hidden>✅</span>}
-              </button>
+                <button
+                  type="button" onClick={() => setChoice(c.id)} aria-pressed={selected}
+                  className="flex w-full items-center gap-3 text-left"
+                >
+                  <span className="text-2xl" aria-hidden>{c.avatarEmoji}</span>
+                  <span className="flex-1 font-semibold">{c.name}</span>
+                  <span className="text-xs text-fgm">{c.mediaCount} 📷</span>
+                  {selected && <span aria-hidden>✅</span>}
+                </button>
+                {c.preview.length > 0 && (
+                  <div className="mt-3 grid grid-cols-4 gap-1.5">
+                    {c.preview.map((url) => <Proof key={url} url={url} className="aspect-square w-full" />)}
+                  </div>
+                )}
+                {c.mediaCount > 4 && (
+                  <Link href="/gallery" className="mt-2 block text-right text-xs text-fgm hover:underline">все {c.mediaCount} →</Link>
+                )}
+              </div>
             );
           })}
         </div>

@@ -39,6 +39,4 @@ function guessExt(mime: string) {
   return { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/gif": ".gif", "image/heic": ".heic", "video/mp4": ".mp4", "video/quicktime": ".mov", "video/webm": ".webm" }[mime] ?? "";
 }
 
-export function isVideoUrl(url: string) {
-  return /\.(mp4|mov|webm)$/i.test(url);
-}
+export { isVideoUrl } from "@/lib/media";

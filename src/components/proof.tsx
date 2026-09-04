@@ -1,4 +1,4 @@
-import { isVideoUrl } from "@/lib/upload";
+import { isVideoUrl } from "@/lib/media";
 
 export function Proof({ url, className = "" }: { url: string | null; className?: string }) {
   if (!url) return <span className="text-xs text-fgm">без фото</span>;

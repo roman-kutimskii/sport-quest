@@ -126,3 +126,25 @@ export function ambassadorWinner(tally: AmbassadorTally) {
   if (tally.length > 1 && tally[1].votes === tally[0].votes) return null;
   return tally[0].candidate;
 }
+
+export type GalleryItem = { url: string; date: string; reportId: string };
+export type GalleryGroup = {
+  user: { id: string; name: string; avatarEmoji: string };
+  items: GalleryItem[];
+};
+
+/** Every approved photo/video of the quest, newest first, grouped by participant (most media first). */
+export const getGallery = cache(async (quest: Quest): Promise<GalleryGroup[]> => {
+  const reports = await prisma.report.findMany({
+    where: { questId: quest.id, status: "APPROVED", proofUrls: { isEmpty: false }, user: { isActive: true } },
+    select: { id: true, date: true, proofUrls: true, user: { select: { id: true, name: true, avatarEmoji: true } } },
+    orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+  });
+  const groups = new Map<string, GalleryGroup>();
+  for (const r of reports) {
+    const g = groups.get(r.user.id) ?? { user: r.user, items: [] };
+    for (const url of r.proofUrls) g.items.push({ url, date: toDateStr(r.date), reportId: r.id });
+    groups.set(r.user.id, g);
+  }
+  return [...groups.values()].sort((a, b) => b.items.length - a.items.length || a.user.name.localeCompare(b.user.name));
+});
