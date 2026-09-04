@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     console.log(`[tg] exchange failed: ${e instanceof Error ? e.message : e}`);
     return fail("tg_invalid");
   }
-  const telegramId = BigInt(identity.id);
+  const telegramId = identity.id;
   const handle = normalizeHandle(identity.username);
 
   let user = await prisma.user.findUnique({ where: { telegramId } });

@@ -87,7 +87,7 @@ export async function exchangeCode(code: string, redirectUri: string, flow: Tele
     algorithms: ["RS256", "ES256", "EdDSA", "ES256K"],
   });
   if (payload.nonce !== flow.nonce) throw new Error("nonce mismatch");
-  if (typeof payload.sub !== "string" || !/^\d+$/.test(payload.sub)) throw new Error("bad sub");
+  if (typeof payload.sub !== "string" || !payload.sub) throw new Error("bad sub");
   const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
   return { id: payload.sub, username: str(payload.preferred_username), name: str(payload.name), picture: str(payload.picture) };
 }
