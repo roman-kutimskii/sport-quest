@@ -86,13 +86,10 @@ async function main() {
     ? await prisma.quest.update({ where: { id: existingQuest.id }, data: questData })
     : await prisma.quest.create({ data: questData });
 
-  const admin = await upsertUser("Роман", "👑", true);
-  const users = [admin];
 
   const withSamples = process.env.SEED_SAMPLES !== "0";
   for (const p of withSamples ? participants : []) {
     const user = await upsertUser(p.name, p.avatarEmoji);
-    users.push(user);
 
     // Idempotent: wipe this user's seeded reports for the quest and recreate.
     await prisma.report.deleteMany({ where: { userId: user.id, questId: quest.id } });
@@ -108,7 +105,6 @@ async function main() {
           durationMin: a.durationMin,
           steps: a.steps ?? null,
           status: ReportStatus.APPROVED,
-          reviewedById: admin.id,
           reviewedAt: new Date(),
         })),
         ...p.bingos.map((b) => ({
@@ -118,7 +114,6 @@ async function main() {
           date: d(b.date),
           bingoKey: b.bingoKey,
           status: ReportStatus.APPROVED,
-          reviewedById: admin.id,
           reviewedAt: new Date(),
         })),
       ],
