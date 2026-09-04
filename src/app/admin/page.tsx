@@ -52,8 +52,8 @@ export default async function AdminPage() {
                   {r.proofUrls.length > 0 && <Proofs urls={r.proofUrls} className="h-24 w-24 shrink-0" />}
                   <div>
                     <div className="font-semibold">{r.user.avatarEmoji} {r.user.name} · {formatRuDate(toDateStr(r.date))}</div>
-                    <div>{r.kind === "BINGO" ? `🎯 ${bingo?.emoji} ${bingo?.title}` : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
-                      {r.durationMin ? ` · ${r.durationMin} мин` : ""}{r.steps ? ` · ${r.steps.toLocaleString("ru-RU")} шагов` : ""}</div>
+                    <div>{r.kind === "BINGO" ? `🎯 ${bingo?.emoji} ${bingo?.title}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
+                      {r.steps ? ` · ${r.steps.toLocaleString("ru-RU")} шагов` : ""}</div>
                     {r.comment && <div className="text-fgm">{r.comment}</div>}
                   </div>
                 </div>

@@ -66,7 +66,6 @@ model Report {
   activityType String?
   bingoKey     String?
   steps        Int?
-  durationMin  Int?
   comment      String?
   proofUrls    String[]     @default([])
   galleryUrls  String[]     @default([])

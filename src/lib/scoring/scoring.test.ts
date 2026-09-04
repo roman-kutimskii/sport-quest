@@ -95,12 +95,13 @@ describe("streaks", () => {
 });
 
 describe("activity detection", () => {
-  it("steps >= 10000 without ACTIVITY makes day active; less does not", () => {
+  it("steps alone never make a day active, even 10000+", () => {
     const r = score(
-      [act(START, { kind: "STEPS", steps: 10000 }), act(addDays(START, 1), { kind: "STEPS", steps: 9999 })],
+      [act(START, { kind: "STEPS", steps: 15000 }), act(addDays(START, 1), { kind: "STEPS", steps: 9999 })],
       addDays(START, 1),
     );
-    expect(r.activeDays).toEqual([START]);
+    expect(r.activeDays).toEqual([]);
+    expect(r.totalSteps).toBe(24999);
   });
   it("steps are max per day, summed across days", () => {
     const r = score(

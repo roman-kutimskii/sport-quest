@@ -110,9 +110,8 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">
-                      {r.kind === "BINGO" ? `🎯 ${bingo?.emoji ?? ""} ${bingo?.title ?? r.bingoKey}` : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
+                      {r.kind === "BINGO" ? `🎯 ${bingo?.emoji ?? ""} ${bingo?.title ?? r.bingoKey}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
                     </span>
-                    {r.durationMin ? <span className="text-fgm">{r.durationMin} мин</span> : null}
                     {r.steps ? <span className="text-fgm">{r.steps.toLocaleString("ru-RU")} шагов</span> : null}
                     <span className={`chip ${st.cls}`}>{st.label}</span>
                   </div>

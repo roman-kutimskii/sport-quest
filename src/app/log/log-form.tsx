@@ -12,6 +12,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
   const [date, setDate] = useState(today);
   const [bingoKey, setBingoKey] = useState("");
   const [withActivity, setWithActivity] = useState(true);
+  const [showBingo, setShowBingo] = useState(false);
   const [activityType, setActivityType] = useState("");
   const [picked, setPicked] = useState<{ name: string; preview: string | null }[]>([]);
 
@@ -28,17 +29,29 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
         </div>
         <div>
           <label className="label" htmlFor="steps">Шаги (если считаешь)</label>
-          <input id="steps" name="steps" inputMode="numeric" className="input" placeholder="10 000" />
+          <input
+            id="steps" name="steps" inputMode="numeric" className="input" placeholder="10 000"
+            onChange={(e) => {
+              const n = Number.parseInt(e.target.value.replace(/\s/g, ""), 10);
+              if (n >= 10000 && !activityType) setActivityType("walk");
+            }}
+          />
         </div>
       </div>
 
+      {!showBingo && (
+        <button type="button" onClick={() => setShowBingo(true)} className="btn-ghost w-full">
+          🎯 Добавить задание бинго (+3 🎃)
+        </button>
+      )}
+
+      {showBingo && (
       <fieldset className="space-y-3">
-        <legend className="label">Задание бинго (необязательно)</legend>
+        <div className="flex items-center justify-between">
+          <legend className="label">Задание бинго</legend>
+          <button type="button" onClick={() => { setShowBingo(false); setBingoKey(""); setWithActivity(true); }} className="text-xs text-fgm hover:text-fg">Убрать</button>
+        </div>
         <div className="grid grid-cols-3 gap-2">
-          <button type="button" onClick={() => setBingoKey("")} className={`rounded-xl border p-2 text-left text-xs transition ${bingoKey === "" ? "border-accent bg-accent-soft" : "border-line bg-elev hover:bg-muted"}`}>
-            <div className="text-lg">🚫</div>
-            <div className="font-semibold">Без бинго</div>
-          </button>
           {BINGO_TASKS.map((t) => {
             const done = doneBingo.includes(t.key);
             const sel = bingoKey === t.key;
@@ -68,6 +81,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
           </label>
         )}
       </fieldset>
+      )}
 
       {(withActivity || !bingoKey) && (
         <fieldset className="space-y-3">
@@ -86,10 +100,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
             ))}
           </div>
           <input type="hidden" name="activityType" value={activityType} />
-          <div>
-            <label className="label" htmlFor="durationMin">Длительность, мин</label>
-            <input id="durationMin" name="durationMin" inputMode="numeric" className="input" placeholder="30" />
-          </div>
+          <p className="text-xs text-fgm">Шаги без выбранной активности сохраняются в общий счёт, но день активным не делают.</p>
         </fieldset>
       )}
 

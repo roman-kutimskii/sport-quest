@@ -21,7 +21,6 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   const date = String(formData.get("date") ?? "");
   const activityType = String(formData.get("activityType") ?? "");
   const stepsRaw = String(formData.get("steps") ?? "").replace(/\s/g, "");
-  const durationRaw = String(formData.get("durationMin") ?? "");
   const comment = String(formData.get("comment") ?? "").trim().slice(0, 500);
   const bingoKey = String(formData.get("bingoKey") ?? "");
   const withActivity = formData.get("withActivity") === "on";
@@ -33,11 +32,12 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
 
   const steps = stepsRaw ? Number.parseInt(stepsRaw, 10) : null;
   if (stepsRaw && (!Number.isFinite(steps) || steps! < 0 || steps! > 200000)) return { error: "Шаги: введи число" };
-  const durationMin = durationRaw ? Number.parseInt(durationRaw, 10) : null;
 
-  const hasActivity = withActivity || !bingoKey;
-  if (hasActivity && !activityType && !steps) return { error: "Выбери тип активности или укажи шаги" };
-  if (hasActivity && activityType && !ACTIVITY_TYPES.some((t) => t.key === activityType)) return { error: "Неизвестный тип активности" };
+  // Steps alone never make a day active: an activity type (e.g. «Прогулка / 10 000+ шагов») must be chosen.
+  const hasActivity = (withActivity || !bingoKey) && Boolean(activityType);
+  const stepsOnly = !bingoKey && !activityType;
+  if (stepsOnly && !steps) return { error: "Выбери тип активности" };
+  if (activityType && !ACTIVITY_TYPES.some((t) => t.key === activityType)) return { error: "Неизвестный тип активности" };
   if (bingoKey && !isBingoKey(bingoKey)) return { error: "Неизвестное задание бинго" };
 
   let proofUrls: string[] = [];
@@ -64,9 +64,13 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
       await tx.report.create({
         data: {
           userId: user.id, questId: quest.id, kind: ReportKind.ACTIVITY, date: dateValue,
-          activityType: activityType || (steps && steps >= 10000 ? "walk" : null),
-          steps, durationMin, comment: comment || null, proofUrls, status,
+          activityType, steps, comment: comment || null, proofUrls, status,
         },
+      });
+    } else if (stepsOnly) {
+      // Steps without an activity: counted in the steps total only.
+      await tx.report.create({
+        data: { userId: user.id, questId: quest.id, kind: ReportKind.STEPS, date: dateValue, steps, comment: comment || null, proofUrls, status },
       });
     }
     if (bingoKey) {

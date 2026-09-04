@@ -10,7 +10,7 @@ const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 const QUEST_TITLE = "Операция «Анти-плед»";
 
-type ActivitySeed = { date: string; activityType: string; durationMin: number; steps?: number };
+type ActivitySeed = { date: string; activityType: string; steps?: number };
 type BingoSeed = { date: string; bingoKey: string };
 
 const participants: Array<{
@@ -24,13 +24,13 @@ const participants: Array<{
     name: "Аня",
     avatarEmoji: "🦊",
     activities: [
-      { date: "2026-08-28", activityType: "run", durationMin: 35, steps: 12400 },
-      { date: "2026-08-29", activityType: "walk", durationMin: 60, steps: 14800 },
-      { date: "2026-08-30", activityType: "yoga", durationMin: 40, steps: 8200 },
-      { date: "2026-08-31", activityType: "run", durationMin: 30, steps: 11300 },
-      { date: "2026-09-01", activityType: "gym", durationMin: 50, steps: 9600 },
-      { date: "2026-09-02", activityType: "bike", durationMin: 45, steps: 8900 },
-      { date: "2026-09-03", activityType: "run", durationMin: 25, steps: 10500 },
+      { date: "2026-08-28", activityType: "run", steps: 12400 },
+      { date: "2026-08-29", activityType: "walk", steps: 14800 },
+      { date: "2026-08-30", activityType: "yoga", steps: 8200 },
+      { date: "2026-08-31", activityType: "run", steps: 11300 },
+      { date: "2026-09-01", activityType: "gym", steps: 9600 },
+      { date: "2026-09-02", activityType: "bike", steps: 8900 },
+      { date: "2026-09-03", activityType: "run", steps: 10500 },
     ],
     bingos: [
       { date: "2026-08-30", bingoKey: "zen" },
@@ -42,11 +42,11 @@ const participants: Array<{
     name: "Дима",
     avatarEmoji: "🐻",
     activities: [
-      { date: "2026-08-25", activityType: "gym", durationMin: 60, steps: 9100 },
-      { date: "2026-08-26", activityType: "walk", durationMin: 40, steps: 13200 },
-      { date: "2026-08-29", activityType: "run", durationMin: 30, steps: 11900 },
-      { date: "2026-09-01", activityType: "swim", durationMin: 45, steps: 8000 },
-      { date: "2026-09-03", activityType: "gym", durationMin: 55, steps: 10200 },
+      { date: "2026-08-25", activityType: "gym", steps: 9100 },
+      { date: "2026-08-26", activityType: "walk", steps: 13200 },
+      { date: "2026-08-29", activityType: "run", steps: 11900 },
+      { date: "2026-09-01", activityType: "swim", steps: 8000 },
+      { date: "2026-09-03", activityType: "gym", steps: 10200 },
     ],
     bingos: [{ date: "2026-08-26", bingoKey: "early" }],
   },
@@ -55,10 +55,10 @@ const participants: Array<{
     name: "Катя",
     avatarEmoji: "🦉",
     activities: [
-      { date: "2026-08-27", activityType: "walk", durationMin: 50, steps: 15000 },
-      { date: "2026-08-31", activityType: "yoga", durationMin: 30, steps: 8400 },
-      { date: "2026-09-01", activityType: "run", durationMin: 35, steps: 12100 },
-      { date: "2026-09-02", activityType: "walk", durationMin: 70, steps: 14100 },
+      { date: "2026-08-27", activityType: "walk", steps: 15000 },
+      { date: "2026-08-31", activityType: "yoga", steps: 8400 },
+      { date: "2026-09-01", activityType: "run", steps: 12100 },
+      { date: "2026-09-02", activityType: "walk", steps: 14100 },
     ],
     bingos: [{ date: "2026-09-01", bingoKey: "tea" }],
   },
@@ -102,7 +102,6 @@ async function main() {
           kind: ReportKind.ACTIVITY,
           date: d(a.date),
           activityType: a.activityType,
-          durationMin: a.durationMin,
           steps: a.steps ?? null,
           status: ReportStatus.APPROVED,
           reviewedAt: new Date(),

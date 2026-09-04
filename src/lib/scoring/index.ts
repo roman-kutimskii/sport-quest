@@ -42,7 +42,6 @@ export type ScoreBreakdown = {
   dayMap: Record<string, DayInfo>;
 };
 
-export const STEPS_ACTIVE_THRESHOLD = 10_000;
 // Only the highest milestone reached within one streak counts (3 → 2, 5 → 5, 7 → 10, not summed).
 // `pumpkins` on an award is the increment over the previous milestone so awards sum to the highest value.
 export const STREAK_MILESTONES: Record<number, { type: StreakAward["type"]; total: number }> = {
@@ -69,13 +68,13 @@ export function computeScore(input: ScoringInput): ScoreBreakdown {
       .map((r) => r.date),
   );
 
-  // Active days + steps (max per day)
+  // Active days + steps (max per day). Steps alone never make a day active — that is what the «walk» activity is for.
   const activeSet = new Set<string>();
   const stepsByDay = new Map<string, number>();
   for (const r of approved) {
     const steps = r.steps ?? 0;
     if (steps > 0) stepsByDay.set(r.date, Math.max(stepsByDay.get(r.date) ?? 0, steps));
-    if (r.kind === "ACTIVITY" || r.kind === "BINGO" || steps >= STEPS_ACTIVE_THRESHOLD) activeSet.add(r.date);
+    if (r.kind === "ACTIVITY" || r.kind === "BINGO") activeSet.add(r.date);
   }
   const activeDays = [...activeSet].sort();
   let totalSteps = 0;
