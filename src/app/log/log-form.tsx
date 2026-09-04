@@ -11,7 +11,6 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
   const [state, action, pending] = useActionState<LogState, FormData>(submitReport, undefined);
   const [date, setDate] = useState(today);
   const [bingoKey, setBingoKey] = useState("");
-  const [withActivity, setWithActivity] = useState(true);
   const [showBingo, setShowBingo] = useState(false);
   const [activityType, setActivityType] = useState("");
   const [picked, setPicked] = useState<{ name: string; preview: string | null }[]>([]);
@@ -49,7 +48,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
       <fieldset className="space-y-3">
         <div className="flex items-center justify-between">
           <legend className="label">Задание бинго</legend>
-          <button type="button" onClick={() => { setShowBingo(false); setBingoKey(""); setWithActivity(true); }} className="text-xs text-fgm hover:text-fg">Убрать</button>
+          <button type="button" onClick={() => { setShowBingo(false); setBingoKey(""); }} className="text-xs text-fgm hover:text-fg">Убрать</button>
         </div>
         <div className="grid grid-cols-3 gap-2">
           {BINGO_TASKS.map((t) => {
@@ -74,35 +73,28 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
         <input type="hidden" name="bingoKey" value={bingoKey} />
         {bingoKey && <p className="text-xs text-fgm">{BINGO_TASKS.find((t) => t.key === bingoKey)?.description}</p>}
         {dayHasBingo && <p className="text-xs text-fgm">На этот день бинго уже записано — по правилам одно задание в день.</p>}
-        {bingoKey && (
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="withActivity" checked={withActivity} onChange={(e) => setWithActivity(e.target.checked)} className="h-4 w-4 accent-accent" />
-            Это же и моя активность за день (+1 🎃)
-          </label>
-        )}
       </fieldset>
       )}
 
-      {(withActivity || !bingoKey) && (
-        <fieldset className="space-y-3">
-          <legend className="label">Активность</legend>
-          <div className="grid grid-cols-3 gap-2">
-            {ACTIVITY_TYPES.map((t) => (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setActivityType(t.key === activityType ? "" : t.key)}
-                className={`rounded-xl border p-2 text-left text-xs transition ${activityType === t.key ? "border-accent bg-accent-soft" : "border-line bg-elev hover:bg-muted"}`}
-              >
-                <div className="text-lg">{t.emoji}</div>
-                <div className="font-semibold leading-tight">{t.title}</div>
-              </button>
-            ))}
-          </div>
-          <input type="hidden" name="activityType" value={activityType} />
-          <p className="text-xs text-fgm">Шаги без выбранной активности сохраняются в общий счёт, но день активным не делают.</p>
-        </fieldset>
-      )}
+      <fieldset className="space-y-3">
+        <legend className="label">Активность</legend>
+        {bingoKey && <p className="text-xs text-fgm">День с бинго уже активный (+1 🎃). Тип активности можно не выбирать — он нужен только для статистики.</p>}
+        <div className="grid grid-cols-3 gap-2">
+          {ACTIVITY_TYPES.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActivityType(t.key === activityType ? "" : t.key)}
+              className={`rounded-xl border p-2 text-left text-xs transition ${activityType === t.key ? "border-accent bg-accent-soft" : "border-line bg-elev hover:bg-muted"}`}
+            >
+              <div className="text-lg">{t.emoji}</div>
+              <div className="font-semibold leading-tight">{t.title}</div>
+            </button>
+          ))}
+        </div>
+        <input type="hidden" name="activityType" value={activityType} />
+        {!bingoKey && <p className="text-xs text-fgm">Шаги без выбранной активности сохраняются в общий счёт, но день активным не делают.</p>}
+      </fieldset>
 
       <div>
         <label className="label" htmlFor="proof">Подтверждение: фото, скрины или видео</label>

@@ -23,7 +23,6 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   const stepsRaw = String(formData.get("steps") ?? "").replace(/\s/g, "");
   const comment = String(formData.get("comment") ?? "").trim().slice(0, 500);
   const bingoKey = String(formData.get("bingoKey") ?? "");
-  const withActivity = formData.get("withActivity") === "on";
   const files = formData.getAll("proof").filter((f): f is File => f instanceof File);
 
   if (!DATE_RE.test(date)) return { error: "Укажи дату" };
@@ -34,7 +33,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   if (stepsRaw && (!Number.isFinite(steps) || steps! < 0 || steps! > 200000)) return { error: "Шаги: введи число" };
 
   // Steps alone never make a day active: an activity type (e.g. «Прогулка / 10 000+ шагов») must be chosen.
-  const hasActivity = (withActivity || !bingoKey) && Boolean(activityType);
+  const hasActivity = Boolean(activityType);
   const stepsOnly = !bingoKey && !activityType;
   if (stepsOnly && !steps) return { error: "Выбери тип активности" };
   if (activityType && !ACTIVITY_TYPES.some((t) => t.key === activityType)) return { error: "Неизвестный тип активности" };
