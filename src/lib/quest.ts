@@ -133,17 +133,17 @@ export type GalleryGroup = {
   items: GalleryItem[];
 };
 
-/** Every approved photo/video of the quest, newest first, grouped by participant (most media first). */
+/** Approved photos/videos their authors opted into the gallery, newest first, grouped by participant (most media first). */
 export const getGallery = cache(async (quest: Quest): Promise<GalleryGroup[]> => {
   const reports = await prisma.report.findMany({
-    where: { questId: quest.id, status: "APPROVED", proofUrls: { isEmpty: false }, user: { isActive: true } },
-    select: { id: true, date: true, proofUrls: true, user: { select: { id: true, name: true, avatarEmoji: true } } },
+    where: { questId: quest.id, status: "APPROVED", galleryUrls: { isEmpty: false }, user: { isActive: true } },
+    select: { id: true, date: true, galleryUrls: true, user: { select: { id: true, name: true, avatarEmoji: true } } },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
   const groups = new Map<string, GalleryGroup>();
   for (const r of reports) {
     const g = groups.get(r.user.id) ?? { user: r.user, items: [] };
-    for (const url of r.proofUrls) g.items.push({ url, date: toDateStr(r.date), reportId: r.id });
+    for (const url of r.galleryUrls) g.items.push({ url, date: toDateStr(r.date), reportId: r.id });
     groups.set(r.user.id, g);
   }
   return [...groups.values()].sort((a, b) => b.items.length - a.items.length || a.user.name.localeCompare(b.user.name));

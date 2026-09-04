@@ -26,6 +26,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   const bingoKey = String(formData.get("bingoKey") ?? "");
   const withActivity = formData.get("withActivity") === "on";
   const files = formData.getAll("proof").filter((f): f is File => f instanceof File);
+  const toGallery = formData.get("toGallery") === "on";
 
   if (!DATE_RE.test(date)) return { error: "Укажи дату" };
   if (date < start || date > end) return { error: "Дата вне сроков квеста" };
@@ -47,6 +48,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
     return { error: (e as Error).message };
   }
 
+  const galleryUrls = toGallery ? proofUrls : [];
   const status = quest.autoApprove ? ReportStatus.APPROVED : ReportStatus.PENDING;
   const dateValue = new Date(`${date}T00:00:00.000Z`);
 
@@ -65,7 +67,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
         data: {
           userId: user.id, questId: quest.id, kind: ReportKind.ACTIVITY, date: dateValue,
           activityType: activityType || (steps && steps >= 10000 ? "walk" : null),
-          steps, durationMin, comment: comment || null, proofUrls, status,
+          steps, durationMin, comment: comment || null, proofUrls, galleryUrls, status,
         },
       });
     }
@@ -73,7 +75,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
       await tx.report.create({
         data: {
           userId: user.id, questId: quest.id, kind: ReportKind.BINGO, date: dateValue,
-          bingoKey, comment: comment || null, proofUrls, status,
+          bingoKey, comment: comment || null, proofUrls, galleryUrls, status,
           steps: hasActivity ? null : steps,
         },
       });
@@ -93,4 +95,20 @@ export async function deleteOwnReport(formData: FormData) {
   await prisma.report.delete({ where: { id } });
   revalidatePath("/");
   revalidatePath(`/u/${user.id}`);
+}
+
+/** Flip whether one proof of the caller's own report is shown in the gallery. */
+export async function toggleGalleryProof(formData: FormData) {
+  const user = await requireUser();
+  const id = String(formData.get("id") ?? "");
+  const url = String(formData.get("url") ?? "");
+  const report = await prisma.report.findUnique({ where: { id } });
+  if (!report || report.userId !== user.id || !report.proofUrls.includes(url)) return;
+  const galleryUrls = report.galleryUrls.includes(url)
+    ? report.galleryUrls.filter((u) => u !== url)
+    : report.proofUrls.filter((u) => u === url || report.galleryUrls.includes(u));
+  await prisma.report.update({ where: { id }, data: { galleryUrls } });
+  revalidatePath(`/u/${user.id}`);
+  revalidatePath("/gallery");
+  revalidatePath("/vote");
 }

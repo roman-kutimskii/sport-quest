@@ -106,6 +106,11 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
             {previews.map((src) => <img key={src} src={src} alt="" className="max-h-56 rounded-xl object-cover" />)}
           </div>
         )}
+        <label className="mt-2 flex items-center gap-2 text-sm">
+          <input type="checkbox" name="toGallery" className="h-4 w-4 accent-accent" />
+          🍁 Показать в галерее осени
+          <span className="text-xs text-fgm">(скрины трекера туда можно не слать)</span>
+        </label>
       </div>
 
       <div>

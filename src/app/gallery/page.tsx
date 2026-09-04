@@ -23,7 +23,7 @@ export default async function GalleryPage() {
       </header>
 
       {groups.length === 0 && (
-        <div className="card p-8 text-center text-fgm">Пока пусто. Прикрепляй фото к отчётам — они появятся здесь.</div>
+        <div className="card p-8 text-center text-fgm">Пока пусто. Отметь свои лучшие фото «в галерею» в профиле или поставь галочку при отправке отчёта.</div>
       )}
 
       {groups.map((g) => (

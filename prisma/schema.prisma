@@ -69,6 +69,7 @@ model Report {
   durationMin  Int?
   comment      String?
   proofUrls    String[]     @default([])
+  galleryUrls  String[]     @default([])
   status       ReportStatus @default(PENDING)
   reviewedById String?
   reviewedAt   DateTime?
