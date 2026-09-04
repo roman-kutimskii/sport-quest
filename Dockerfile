@@ -1,9 +1,8 @@
 # syntax=docker/dockerfile:1
 FROM node:24-alpine AS deps
 WORKDIR /app
+# Only the manifests here: anything else copied before `npm ci` invalidates its cache.
 COPY package.json package-lock.json ./
-COPY prisma ./prisma
-COPY prisma.config.ts ./
 RUN npm ci
 
 FROM node:24-alpine AS build
