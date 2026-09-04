@@ -109,6 +109,8 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
           <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
             {picked.map((f, i) =>
               f.preview ? (
+                // Local blob: preview of a not-yet-uploaded file; next/image cannot optimize it.
+                // eslint-disable-next-line @next/next/no-img-element
                 <img key={`${f.name}-${i}`} src={f.preview} alt="" className="aspect-square w-full rounded-xl object-cover" />
               ) : (
                 <div key={`${f.name}-${i}`} className="flex aspect-square w-full items-center justify-center rounded-xl bg-muted text-3xl">{isVideoUrl(f.name) ? "🎬" : "📎"}</div>
