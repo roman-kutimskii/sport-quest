@@ -141,9 +141,14 @@ export const getGallery = cache(async (quest: Quest): Promise<GalleryGroup[]> =>
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
   });
   const groups = new Map<string, GalleryGroup>();
+  const seen = new Set<string>();
   for (const r of reports) {
     const g = groups.get(r.user.id) ?? { user: r.user, items: [] };
-    for (const url of r.galleryUrls) g.items.push({ url, date: toDateStr(r.date), reportId: r.id });
+    for (const url of r.galleryUrls) {
+      if (seen.has(url)) continue;
+      seen.add(url);
+      g.items.push({ url, date: toDateStr(r.date), reportId: r.id });
+    }
     groups.set(r.user.id, g);
   }
   return [...groups.values()].sort((a, b) => b.items.length - a.items.length || a.user.name.localeCompare(b.user.name));

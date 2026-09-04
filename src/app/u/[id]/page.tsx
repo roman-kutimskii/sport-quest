@@ -99,32 +99,41 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
         <h2 className="border-b border-line px-5 py-3 font-bold">История отчётов</h2>
         {reports.length === 0 && <p className="p-5 text-sm text-fgm">Пока пусто.</p>}
         <ul className="divide-y divide-line">
-          {reports.map((r) => {
-            const d = toDateStr(r.date);
-            const type = ACTIVITY_TYPES.find((t) => t.key === r.activityType);
-            const bingo = BINGO_TASKS.find((t) => t.key === r.bingoKey);
-            const st = STATUS[r.status];
+          {groupSubmissions(reports).map((group) => {
+            const first = group[0];
+            const d = toDateStr(first.date);
             return (
-              <li key={r.id} className="flex gap-4 px-5 py-3 text-sm">
+              <li key={first.id} className="flex gap-4 px-5 py-3 text-sm">
                 <div className="w-24 shrink-0 text-fgm">{formatRuDate(d)}</div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold">
-                      {r.kind === "BINGO" ? `🎯 ${bingo?.emoji ?? ""} ${bingo?.title ?? r.bingoKey}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
-                    </span>
-                    {r.steps ? <span className="text-fgm">{r.steps.toLocaleString("ru-RU")} шагов</span> : null}
-                    <span className={`chip ${st.cls}`}>{st.label}</span>
-                  </div>
-                  {r.comment && <div className="mt-1 text-fgm">{r.comment}</div>}
-                  {r.status === "REJECTED" && r.rejectReason && <div className="mt-1 text-danger">Причина: {r.rejectReason}</div>}
-                  {canSeeProof && r.proofUrls.length > 0 && <div className="mt-2"><Proofs urls={r.proofUrls} className="max-h-40" /></div>}
+                <div className="min-w-0 flex-1 space-y-1">
+                  {group.map((r) => {
+                    const type = ACTIVITY_TYPES.find((t) => t.key === r.activityType);
+                    const bingo = BINGO_TASKS.find((t) => t.key === r.bingoKey);
+                    const st = STATUS[r.status];
+                    return (
+                      <div key={r.id} className="flex items-start gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-semibold">
+                              {r.kind === "BINGO" ? `🎯 ${bingo?.emoji ?? ""} ${bingo?.title ?? r.bingoKey}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
+                            </span>
+                            {r.steps ? <span className="text-fgm">{r.steps.toLocaleString("ru-RU")} шагов</span> : null}
+                            <span className={`chip ${st.cls}`}>{st.label}</span>
+                          </div>
+                          {r.status === "REJECTED" && r.rejectReason && <div className="mt-1 text-danger">Причина: {r.rejectReason}</div>}
+                        </div>
+                        {isMe && (
+                          <form action={deleteOwnReport}>
+                            <input type="hidden" name="id" value={r.id} />
+                            <button className="text-xs text-fgm hover:text-danger" title="Удалить отчёт">удалить</button>
+                          </form>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {first.comment && <div className="text-fgm">{first.comment}</div>}
+                  {canSeeProof && first.proofUrls.length > 0 && <div className="mt-2"><Proofs urls={first.proofUrls} className="max-h-40" /></div>}
                 </div>
-                {isMe && (
-                  <form action={deleteOwnReport}>
-                    <input type="hidden" name="id" value={r.id} />
-                    <button className="text-xs text-fgm hover:text-danger" title="Удалить отчёт">удалить</button>
-                  </form>
-                )}
               </li>
             );
           })}
@@ -146,6 +155,23 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
       )}
     </div>
   );
+}
+
+/**
+ * One form submission may create several reports (activity + bingo) that share the same date,
+ * comment and photos. Show them as one row so the photos are not repeated (photo-less reports stay separate).
+ */
+function groupSubmissions<T extends { date: Date; comment: string | null; proofUrls: string[] }>(reports: T[]): T[][] {
+  const groups: T[][] = [];
+  const index = new Map<string, T[]>();
+  for (const r of reports) {
+    if (r.proofUrls.length === 0) { groups.push([r]); continue; }
+    const key = `${toDateStr(r.date)}|${r.comment ?? ""}|${[...r.proofUrls].sort().join(",")}`;
+    const g = index.get(key);
+    if (g) g.push(r);
+    else { const ng = [r]; index.set(key, ng); groups.push(ng); }
+  }
+  return groups;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

@@ -7,9 +7,12 @@ type Report = { id: string; date: Date; status: string; proofUrls: string[]; gal
 
 /** Owner-only: every photo from their reports as a tile; click a tile to show it in / hide it from the gallery. */
 export function MyGallery({ reports }: { reports: Report[] }) {
+  // A photo attached to several reports of one submission (activity + bingo) is listed once.
+  const seen = new Set<string>();
   const items = reports
     .filter((r) => r.status !== "REJECTED")
-    .flatMap((r) => r.proofUrls.map((url) => ({ url, reportId: r.id, date: toDateStr(r.date), shared: r.galleryUrls.includes(url) })));
+    .flatMap((r) => r.proofUrls.map((url) => ({ url, reportId: r.id, date: toDateStr(r.date), shared: r.galleryUrls.includes(url) })))
+    .filter((it) => !seen.has(it.url) && seen.add(it.url));
   const shared = items.filter((i) => i.shared).length;
 
   return (
