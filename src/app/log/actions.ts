@@ -26,7 +26,6 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   const bingoKey = String(formData.get("bingoKey") ?? "");
   const withActivity = formData.get("withActivity") === "on";
   const files = formData.getAll("proof").filter((f): f is File => f instanceof File);
-  const galleryIdx = new Set(formData.getAll("galleryIdx").map(String));
 
   if (!DATE_RE.test(date)) return { error: "Укажи дату" };
   if (date < start || date > end) return { error: "Дата вне сроков квеста" };
@@ -48,8 +47,6 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
     return { error: (e as Error).message };
   }
 
-  // saveProofs keeps the order of non-empty files, so indices line up with the form's file list.
-  const galleryUrls = proofUrls.filter((_, i) => galleryIdx.has(String(i)));
   const status = quest.autoApprove ? ReportStatus.APPROVED : ReportStatus.PENDING;
   const dateValue = new Date(`${date}T00:00:00.000Z`);
 
@@ -68,7 +65,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
         data: {
           userId: user.id, questId: quest.id, kind: ReportKind.ACTIVITY, date: dateValue,
           activityType: activityType || (steps && steps >= 10000 ? "walk" : null),
-          steps, durationMin, comment: comment || null, proofUrls, galleryUrls, status,
+          steps, durationMin, comment: comment || null, proofUrls, status,
         },
       });
     }
@@ -76,7 +73,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
       await tx.report.create({
         data: {
           userId: user.id, questId: quest.id, kind: ReportKind.BINGO, date: dateValue,
-          bingoKey, comment: comment || null, proofUrls, galleryUrls, status,
+          bingoKey, comment: comment || null, proofUrls, status,
           steps: hasActivity ? null : steps,
         },
       });

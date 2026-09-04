@@ -103,23 +103,14 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
           }}
         />
         {picked.length > 0 && (
-          <div className="mt-3 space-y-2">
-            <p className="text-xs text-fgm">Отметь, что показать в галерее осени 🍁 — скрины трекера можно не слать.</p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              {picked.map((f, i) => (
-                <label key={`${f.name}-${i}`} className="flex cursor-pointer flex-col gap-2 rounded-xl border border-line bg-elev p-2 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
-                  {f.preview ? (
-                    <img src={f.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-muted text-3xl">{isVideoUrl(f.name) ? "🎬" : "📎"}</div>
-                  )}
-                  <span className="flex items-center gap-2 text-xs">
-                    <input type="checkbox" name="galleryIdx" value={i} className="h-4 w-4 accent-accent" />
-                    в галерею
-                  </span>
-                </label>
-              ))}
-            </div>
+          <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4">
+            {picked.map((f, i) =>
+              f.preview ? (
+                <img key={`${f.name}-${i}`} src={f.preview} alt="" className="aspect-square w-full rounded-xl object-cover" />
+              ) : (
+                <div key={`${f.name}-${i}`} className="flex aspect-square w-full items-center justify-center rounded-xl bg-muted text-3xl">{isVideoUrl(f.name) ? "🎬" : "📎"}</div>
+              ),
+            )}
           </div>
         )}
       </div>

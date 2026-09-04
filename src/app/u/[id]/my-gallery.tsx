@@ -18,7 +18,7 @@ export function MyGallery({ reports }: { reports: Report[] }) {
         <h2 className="font-bold">🍁 Моя галерея <span className="text-fgm">({shared} из {items.length})</span></h2>
         <Link href="/gallery" className="text-xs text-fgm hover:underline">Общая галерея →</Link>
       </div>
-      <p className="mt-1 text-xs text-fgm">Нажми на фото, чтобы показать его в общей галерее или убрать оттуда. Скрины трекера лучше оставить себе.</p>
+      <p className="mt-1 text-xs text-fgm">Сюда попадают все фото из твоих отчётов, но в общей галерее их не видно, пока ты их не выберешь. Нажми на фото, чтобы показать или скрыть его.</p>
       {items.length === 0 ? (
         <p className="mt-4 text-sm text-fgm">Пока нет фото — прикрепляй их к отчётам.</p>
       ) : (
