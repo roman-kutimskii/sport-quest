@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { isVideoUrl } from "@/lib/media";
 import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
 import { submitReport, type LogState } from "./actions";
 
@@ -12,7 +13,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
   const [bingoKey, setBingoKey] = useState("");
   const [withActivity, setWithActivity] = useState(true);
   const [activityType, setActivityType] = useState("");
-  const [previews, setPreviews] = useState<string[]>([]);
+  const [picked, setPicked] = useState<{ name: string; preview: string | null }[]>([]);
 
   const dayHasBingo = bingoDates.includes(date);
   const dayActive = activeDays.includes(date);
@@ -97,20 +98,30 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
         <input
           id="proof" name="proof" type="file" accept="image/*,video/*" multiple className="input file:mr-3 file:rounded-lg file:border-0 file:bg-accent-soft file:px-3 file:py-1 file:text-xs file:font-semibold file:text-accent-strong"
           onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            setPreviews(files.filter((f) => f.type.startsWith("image/")).map((f) => URL.createObjectURL(f)));
+            const files = Array.from(e.target.files ?? []).filter((f) => f.size > 0);
+            setPicked(files.map((f) => ({ name: f.name, preview: f.type.startsWith("image/") ? URL.createObjectURL(f) : null })));
           }}
         />
-        {previews.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            {previews.map((src) => <img key={src} src={src} alt="" className="max-h-56 rounded-xl object-cover" />)}
+        {picked.length > 0 && (
+          <div className="mt-3 space-y-2">
+            <p className="text-xs text-fgm">Отметь, что показать в галерее осени 🍁 — скрины трекера можно не слать.</p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {picked.map((f, i) => (
+                <label key={`${f.name}-${i}`} className="flex cursor-pointer flex-col gap-2 rounded-xl border border-line bg-elev p-2 has-[:checked]:border-accent has-[:checked]:bg-accent-soft">
+                  {f.preview ? (
+                    <img src={f.preview} alt="" className="aspect-square w-full rounded-lg object-cover" />
+                  ) : (
+                    <div className="flex aspect-square w-full items-center justify-center rounded-lg bg-muted text-3xl">{isVideoUrl(f.name) ? "🎬" : "📎"}</div>
+                  )}
+                  <span className="flex items-center gap-2 text-xs">
+                    <input type="checkbox" name="galleryIdx" value={i} className="h-4 w-4 accent-accent" />
+                    в галерею
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
-        <label className="mt-2 flex items-center gap-2 text-sm">
-          <input type="checkbox" name="toGallery" className="h-4 w-4 accent-accent" />
-          🍁 Показать в галерее осени
-          <span className="text-xs text-fgm">(скрины трекера туда можно не слать)</span>
-        </label>
       </div>
 
       <div>

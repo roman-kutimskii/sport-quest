@@ -7,7 +7,7 @@ import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Invulnerable, Pumpkins, StreakBadge } from "@/components/pumpkins";
 import { QuestCalendar } from "@/components/calendar";
 import { Proofs } from "@/components/proof";
-import { GalleryProofs } from "./gallery-proofs";
+import { MyGallery } from "./my-gallery";
 import { deleteOwnReport } from "@/app/log/actions";
 import { ProfileForm } from "./profile-form";
 
@@ -93,6 +93,8 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
         </div>
       </section>
 
+      {isMe && <MyGallery reports={reports} />}
+
       <section className="card overflow-hidden">
         <h2 className="border-b border-line px-5 py-3 font-bold">История отчётов</h2>
         {reports.length === 0 && <p className="p-5 text-sm text-fgm">Пока пусто.</p>}
@@ -116,11 +118,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
                   </div>
                   {r.comment && <div className="mt-1 text-fgm">{r.comment}</div>}
                   {r.status === "REJECTED" && r.rejectReason && <div className="mt-1 text-danger">Причина: {r.rejectReason}</div>}
-                  {canSeeProof && r.proofUrls.length > 0 && (
-                    <div className="mt-2">
-                      {isMe ? <GalleryProofs reportId={r.id} urls={r.proofUrls} galleryUrls={r.galleryUrls} /> : <Proofs urls={r.proofUrls} className="max-h-40" />}
-                    </div>
-                  )}
+                  {canSeeProof && r.proofUrls.length > 0 && <div className="mt-2"><Proofs urls={r.proofUrls} className="max-h-40" /></div>}
                 </div>
                 {isMe && (
                   <form action={deleteOwnReport}>

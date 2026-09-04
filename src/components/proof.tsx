@@ -19,3 +19,10 @@ export function Proofs({ urls, className = "" }: { urls: string[]; className?: s
     </div>
   );
 }
+
+/** Non-interactive thumbnail for use inside buttons/labels. */
+export function Thumb({ url, className = "" }: { url: string; className?: string }) {
+  if (isVideoUrl(url)) return <video src={url} muted preload="metadata" className={`rounded-lg object-cover ${className}`} />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="" className={`rounded-lg object-cover ${className}`} loading="lazy" />;
+}
