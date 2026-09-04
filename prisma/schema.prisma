@@ -33,7 +33,6 @@ model User {
   telegramId     String?      @unique
   isAdmin        Boolean      @default(false)
   isActive       Boolean      @default(true)
-  inviteToken    String       @unique @default(cuid())
   createdAt      DateTime     @default(now())
   reports        Report[]
   adjustments    Adjustment[]

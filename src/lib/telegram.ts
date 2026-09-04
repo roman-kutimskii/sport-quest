@@ -92,6 +92,13 @@ export async function exchangeCode(code: string, redirectUri: string, flow: Tele
   return { id: payload.sub, username: str(payload.preferred_username), name: str(payload.name), picture: str(payload.picture) };
 }
 
+/** Telegram usernames (comma-separated env) that are granted admin on sign-in. */
+export function isBootstrapAdmin(username: string | undefined) {
+  const h = normalizeHandle(username);
+  if (!h) return false;
+  return (process.env.TELEGRAM_ADMIN_USERNAMES ?? "").split(",").map(normalizeHandle).includes(h);
+}
+
 export function normalizeHandle(raw: string | null | undefined) {
   const h = (raw ?? "").trim().replace(/^@/, "").replace(/^https?:\/\/t\.me\//i, "");
   return h ? h.toLowerCase() : null;

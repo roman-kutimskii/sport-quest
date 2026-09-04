@@ -1,4 +1,3 @@
-import { headers } from "next/headers";
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeNominations, getActiveQuest, getLeaderboard } from "@/lib/quest";
@@ -6,16 +5,13 @@ import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
 import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Proof } from "@/components/proof";
 import { NOMINATIONS } from "@/lib/nominations";
-import { addAdjustment, approveAllPending, createParticipant, reviewReport, setNomination, toggleUser, updateQuestSettings } from "./actions";
-import { CopyButton } from "@/components/copy-button";
+import { addAdjustment, approveAllPending, reviewReport, setNomination, toggleUser, updateQuestSettings } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
   await requireAdmin();
   const quest = await getActiveQuest();
-  const h = await headers();
-  const origin = `${h.get("x-forwarded-proto") ?? "http"}://${h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000"}`;
 
   const [pending, users, rows, manual] = await Promise.all([
     prisma.report.findMany({ where: { questId: quest.id, status: "PENDING" }, include: { user: true }, orderBy: { createdAt: "asc" } }),
@@ -70,19 +66,14 @@ export default async function AdminPage() {
       </section>
 
       <section className="card p-5">
-        <h2 className="font-bold">Участники и ссылки-приглашения</h2>
-        <p className="mt-1 text-xs text-fgm">Отправь каждому его личную ссылку. По ней происходит вход без пароля.</p>
+        <h2 className="font-bold">Участники</h2>
+        <p className="mt-1 text-xs text-fgm">Аккаунт создаётся автоматически при первом входе через Telegram.</p>
         <ul className="mt-3 divide-y divide-line text-sm">
           {users.map((u) => {
-            const link = `${origin}/join/${u.inviteToken}`;
             return (
               <li key={u.id} className={`flex flex-wrap items-center gap-2 py-2 ${u.isActive ? "" : "opacity-50"}`}>
                 <span className="w-40 font-semibold">{u.avatarEmoji} {u.name}{u.isAdmin && " 👑"}</span>
-                <span className="w-28 truncate text-xs text-fgm" title={u.telegramId ? "Telegram привязан" : "Telegram не привязан"}>
-                  {u.telegramHandle ? `@${u.telegramHandle}` : "—"}{u.telegramId ? " ✅" : ""}
-                </span>
-                <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs">{link}</code>
-                <CopyButton text={link} />
+                <span className="min-w-0 flex-1 truncate text-xs text-fgm">{u.telegramHandle ? `@${u.telegramHandle}` : "—"}</span>
                 <form action={toggleUser} className="flex gap-1">
                   <input type="hidden" name="id" value={u.id} />
                   <button name="field" value="isActive" className="btn-ghost !px-2 !py-1 text-xs">{u.isActive ? "деактивировать" : "активировать"}</button>
@@ -92,12 +83,6 @@ export default async function AdminPage() {
             );
           })}
         </ul>
-        <form action={createParticipant} className="mt-4 flex flex-wrap gap-2">
-          <input name="avatarEmoji" className="input !w-20" placeholder="🦊" />
-          <input name="name" className="input !w-56" placeholder="Имя участника" required />
-          <input name="telegramHandle" className="input !w-40" placeholder="@telegram" />
-          <button className="btn-primary">Добавить</button>
-        </form>
       </section>
 
       <section className="card p-5">

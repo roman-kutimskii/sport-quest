@@ -1,16 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getCurrentUser, SESSION_COOKIE, makeSessionValue } from "@/lib/auth";
+import { SESSION_COOKIE, makeSessionValue } from "@/lib/auth";
 import { publicOrigin } from "@/lib/origin";
-import { TG_FLOW_COOKIE, type TelegramFlow, exchangeCode, normalizeHandle, telegramEnabled } from "@/lib/telegram";
+import { TG_FLOW_COOKIE, type TelegramFlow, exchangeCode, isBootstrapAdmin, normalizeHandle, telegramEnabled } from "@/lib/telegram";
 
 /**
  * Telegram OpenID Connect redirect URI.
  *
- * Rules: an account is matched by stored Telegram ID, otherwise by the
- * @username the organizer entered for the participant. A user who is already
- * signed in (via invite link) gets their Telegram linked to that account.
- * Unknown Telegram users are not created: the quest is invite-only.
+ * Anyone with a Telegram account may sign in. An account is matched by the
+ * stored Telegram subject, else by a @username an organizer pre-entered, else
+ * created on the spot. Usernames listed in TELEGRAM_ADMIN_USERNAMES get admin.
  */
 export async function GET(req: NextRequest) {
   const origin = publicOrigin(req);
@@ -37,25 +36,27 @@ export async function GET(req: NextRequest) {
   }
   const telegramId = identity.id;
   const handle = normalizeHandle(identity.username);
+  const admin = isBootstrapAdmin(identity.username);
 
   let user = await prisma.user.findUnique({ where: { telegramId } });
-  if (!user) {
-    const current = await getCurrentUser();
-    if (current) {
-      user = await prisma.user.update({
-        where: { id: current.id },
-        data: { telegramId, telegramHandle: current.telegramHandle ?? identity.username ?? null },
-      });
-    }
-  }
   if (!user && handle) {
     const candidates = await prisma.user.findMany({ where: { telegramHandle: { not: null }, telegramId: null } });
     const match = candidates.find((u) => normalizeHandle(u.telegramHandle) === handle);
-    if (match) user = await prisma.user.update({ where: { id: match.id }, data: { telegramId } });
+    if (match) user = await prisma.user.update({ where: { id: match.id }, data: { telegramId, isAdmin: match.isAdmin || admin } });
   }
-  if (!user || !user.isActive) {
-    console.log(`[tg] no account for telegram id=${identity.id} username=${identity.username ?? "-"}`);
-    return fail("tg_unknown");
+  if (user) {
+    const patch: { telegramHandle?: string; isAdmin?: boolean } = {};
+    if (identity.username && identity.username !== user.telegramHandle) patch.telegramHandle = identity.username;
+    if (admin && !user.isAdmin) patch.isAdmin = true;
+    if (Object.keys(patch).length) user = await prisma.user.update({ where: { id: user.id }, data: patch });
+  } else {
+    const name = (identity.name ?? identity.username ?? "Участник").trim().slice(0, 60) || "Участник";
+    user = await prisma.user.create({ data: { name, telegramId, telegramHandle: identity.username ?? null, isAdmin: admin } });
+    console.log(`[tg] created user ${name} (${identity.username ?? "-"})`);
+  }
+  if (!user.isActive) {
+    console.log(`[tg] inactive user ${user.name} tried to sign in`);
+    return fail("tg_inactive");
   }
 
   console.log(`[tg] ${user.name} signed in via Telegram`);

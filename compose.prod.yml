@@ -27,6 +27,7 @@ services:
       TELEGRAM_CLIENT_ID: ${TELEGRAM_CLIENT_ID:-}
       TELEGRAM_CLIENT_SECRET: ${TELEGRAM_CLIENT_SECRET:-}
       TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
+      TELEGRAM_ADMIN_USERNAMES: ${TELEGRAM_ADMIN_USERNAMES:-}
     volumes:
       - uploads:/data/uploads
     depends_on:

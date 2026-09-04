@@ -189,7 +189,7 @@ Must be deterministic and covered by unit tests, including:
 
 ### 7.4 Admin
 - Moderation queue: pending reports with proof preview, approve / reject with reason, bulk approve.
-- Participants: invite link, deactivate, toggle admin.
+- Participants: deactivate, toggle admin.
 - Adjustments: add delta with comment.
 - Quest settings: dates, timezone, auto-approve, publish results.
 - Nominations: view computed winners, override, publish.
@@ -220,7 +220,7 @@ Must be deterministic and covered by unit tests, including:
 
 MVP defaults (implemented, 2026-09-03): 1 — cumulative, resets after 7; 2 — no; 3 — yes; 4 — auto-approve on,
 admin can switch to moderation; 5 — any date within the quest, up to today; 6 — single quest timezone (Europe/Moscow).
-Auth in MVP is per-participant invite links (no passwords, no email). Notifications and CSV export are not built yet.
+Auth is Telegram OpenID Connect; any Telegram account may sign in and gets a participant created. Notifications and CSV export are not built yet.
 
 1. Streak bonuses: cumulative (2+5+10) or only the highest reached? Does the counter reset after 7?
 2. Does a bingo task alone count as the day's activity?

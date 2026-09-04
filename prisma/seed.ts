@@ -127,9 +127,7 @@ async function main() {
 
   const reportCount = await prisma.report.count({ where: { questId: quest.id } });
   console.log(`Quest "${quest.title}" (${quest.id}) — ${reportCount} reports\n`);
-  for (const u of users) {
-    console.log(`${u.name}${u.isAdmin ? " (admin)" : ""}: ${process.env.PUBLIC_URL ?? "http://localhost:3000"}/join/${u.inviteToken}`);
-  }
+  console.log("Sign in via Telegram; usernames in TELEGRAM_ADMIN_USERNAMES become admins.");
 }
 
 main()
