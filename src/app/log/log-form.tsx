@@ -12,7 +12,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
   const [bingoKey, setBingoKey] = useState("");
   const [withActivity, setWithActivity] = useState(true);
   const [activityType, setActivityType] = useState("");
-  const [preview, setPreview] = useState<string | null>(null);
+  const [previews, setPreviews] = useState<string[]>([]);
 
   const dayHasBingo = bingoDates.includes(date);
   const dayActive = activeDays.includes(date);
@@ -93,15 +93,19 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
       )}
 
       <div>
-        <label className="label" htmlFor="proof">Подтверждение: фото, скрин или видео</label>
+        <label className="label" htmlFor="proof">Подтверждение: фото, скрины или видео</label>
         <input
-          id="proof" name="proof" type="file" accept="image/*,video/*" className="input file:mr-3 file:rounded-lg file:border-0 file:bg-accent-soft file:px-3 file:py-1 file:text-xs file:font-semibold file:text-accent-strong"
+          id="proof" name="proof" type="file" accept="image/*,video/*" multiple className="input file:mr-3 file:rounded-lg file:border-0 file:bg-accent-soft file:px-3 file:py-1 file:text-xs file:font-semibold file:text-accent-strong"
           onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f && f.type.startsWith("image/")) setPreview(URL.createObjectURL(f)); else setPreview(null);
+            const files = Array.from(e.target.files ?? []);
+            setPreviews(files.filter((f) => f.type.startsWith("image/")).map((f) => URL.createObjectURL(f)));
           }}
         />
-        {preview && <img src={preview} alt="" className="mt-2 max-h-56 rounded-xl object-cover" />}
+        {previews.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {previews.map((src) => <img key={src} src={src} alt="" className="max-h-56 rounded-xl object-cover" />)}
+          </div>
+        )}
       </div>
 
       <div>

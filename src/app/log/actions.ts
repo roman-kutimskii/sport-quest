@@ -6,7 +6,7 @@ import { prisma, ReportKind, ReportStatus } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { getActiveQuest, questDates } from "@/lib/quest";
 import { isBingoKey, ACTIVITY_TYPES } from "@/lib/bingo";
-import { saveProof } from "@/lib/upload";
+import { saveProofs } from "@/lib/upload";
 import { toDateStr } from "@/lib/scoring/dates";
 
 export type LogState = { error?: string; ok?: boolean } | undefined;
@@ -25,7 +25,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   const comment = String(formData.get("comment") ?? "").trim().slice(0, 500);
   const bingoKey = String(formData.get("bingoKey") ?? "");
   const withActivity = formData.get("withActivity") === "on";
-  const file = formData.get("proof");
+  const files = formData.getAll("proof").filter((f): f is File => f instanceof File);
 
   if (!DATE_RE.test(date)) return { error: "Укажи дату" };
   if (date < start || date > end) return { error: "Дата вне сроков квеста" };
@@ -40,9 +40,9 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   if (hasActivity && activityType && !ACTIVITY_TYPES.some((t) => t.key === activityType)) return { error: "Неизвестный тип активности" };
   if (bingoKey && !isBingoKey(bingoKey)) return { error: "Неизвестное задание бинго" };
 
-  let proofUrl: string | null = null;
+  let proofUrls: string[] = [];
   try {
-    proofUrl = await saveProof(file instanceof File ? file : null);
+    proofUrls = await saveProofs(files);
   } catch (e) {
     return { error: (e as Error).message };
   }
@@ -65,7 +65,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
         data: {
           userId: user.id, questId: quest.id, kind: ReportKind.ACTIVITY, date: dateValue,
           activityType: activityType || (steps && steps >= 10000 ? "walk" : null),
-          steps, durationMin, comment: comment || null, proofUrl, status,
+          steps, durationMin, comment: comment || null, proofUrls, status,
         },
       });
     }
@@ -73,7 +73,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
       await tx.report.create({
         data: {
           userId: user.id, questId: quest.id, kind: ReportKind.BINGO, date: dateValue,
-          bingoKey, comment: comment || null, proofUrl, status,
+          bingoKey, comment: comment || null, proofUrls, status,
           steps: hasActivity ? null : steps,
         },
       });

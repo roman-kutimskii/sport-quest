@@ -64,7 +64,7 @@ model Report {
   steps        Int?
   durationMin  Int?
   comment      String?
-  proofUrl     String?
+  proofUrls    String[]
   status       ReportStatus @default(PENDING)
   reviewedById String?
   reviewedAt   DateTime?

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { computeNominations, getActiveQuest, getLeaderboard } from "@/lib/quest";
 import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
 import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
-import { Proof } from "@/components/proof";
+import { Proofs } from "@/components/proof";
 import { NOMINATIONS } from "@/lib/nominations";
 import { addAdjustment, approveAllPending, reviewReport, setNomination, toggleUser, updateQuestSettings } from "./actions";
 
@@ -45,7 +45,7 @@ export default async function AdminPage() {
             return (
               <li key={r.id} className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-[1fr_auto]">
                 <div className="flex gap-3">
-                  {r.proofUrl && <Proof url={r.proofUrl} className="h-24 w-24 shrink-0" />}
+                  {r.proofUrls.length > 0 && <Proofs urls={r.proofUrls} className="h-24 w-24 shrink-0" />}
                   <div>
                     <div className="font-semibold">{r.user.avatarEmoji} {r.user.name} · {formatRuDate(toDateStr(r.date))}</div>
                     <div>{r.kind === "BINGO" ? `🎯 ${bingo?.emoji} ${bingo?.title}` : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}

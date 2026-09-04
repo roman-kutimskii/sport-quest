@@ -10,3 +10,12 @@ export function Proof({ url, className = "" }: { url: string | null; className?:
     </a>
   );
 }
+
+export function Proofs({ urls, className = "" }: { urls: string[]; className?: string }) {
+  if (urls.length === 0) return <span className="text-xs text-fgm">без фото</span>;
+  return (
+    <div className="flex flex-wrap gap-2">
+      {urls.map((url) => <Proof key={url} url={url} className={className} />)}
+    </div>
+  );
+}

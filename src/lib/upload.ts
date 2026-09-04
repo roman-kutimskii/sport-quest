@@ -9,8 +9,10 @@ export function uploadDir() {
   return path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
 }
 
-/** Saves a proof file; returns public URL path or null if no file given. Throws on invalid file. */
-export async function saveProof(file: File | null): Promise<string | null> {
+const MAX_FILES = 10;
+
+/** Saves one proof file; returns public URL path or null if no file given. Throws on invalid file. */
+async function saveProof(file: File | null): Promise<string | null> {
   if (!file || file.size === 0) return null;
   if (file.size > MAX_BYTES) throw new Error("Файл больше 50 МБ");
   if (!ALLOWED.has(file.type)) throw new Error("Поддерживаются только фото (jpg, png, webp, heic) и видео (mp4, mov, webm)");
@@ -19,6 +21,18 @@ export async function saveProof(file: File | null): Promise<string | null> {
   await mkdir(uploadDir(), { recursive: true });
   await writeFile(path.join(uploadDir(), name), Buffer.from(await file.arrayBuffer()));
   return `/uploads/${name}`;
+}
+
+/** Saves several proof files; returns their public URL paths. Throws on invalid file. */
+export async function saveProofs(files: File[]): Promise<string[]> {
+  const real = files.filter((f) => f.size > 0);
+  if (real.length > MAX_FILES) throw new Error(`Не больше ${MAX_FILES} файлов за раз`);
+  const urls: string[] = [];
+  for (const file of real) {
+    const url = await saveProof(file);
+    if (url) urls.push(url);
+  }
+  return urls;
 }
 
 function guessExt(mime: string) {

@@ -6,7 +6,7 @@ import { BINGO_TASKS, ACTIVITY_TYPES } from "@/lib/bingo";
 import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Invulnerable, Pumpkins, StreakBadge } from "@/components/pumpkins";
 import { QuestCalendar } from "@/components/calendar";
-import { Proof } from "@/components/proof";
+import { Proofs } from "@/components/proof";
 import { deleteOwnReport } from "@/app/log/actions";
 
 export const dynamic = "force-dynamic";
@@ -109,7 +109,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
                   </div>
                   {r.comment && <div className="mt-1 text-fgm">{r.comment}</div>}
                   {r.status === "REJECTED" && r.rejectReason && <div className="mt-1 text-danger">Причина: {r.rejectReason}</div>}
-                  {canSeeProof && r.proofUrl && <div className="mt-2"><Proof url={r.proofUrl} className="max-h-40" /></div>}
+                  {canSeeProof && r.proofUrls.length > 0 && <div className="mt-2"><Proofs urls={r.proofUrls} className="max-h-40" /></div>}
                 </div>
                 {isMe && (
                   <form action={deleteOwnReport}>
