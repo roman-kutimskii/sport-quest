@@ -52,7 +52,7 @@ export default async function Home() {
           )}
           {!user && (
             <p className="mt-4 text-sm text-fgm">
-              Участник? <Link href="/login" className="font-semibold text-accent-strong underline">Войди по ссылке-приглашению</Link>, чтобы записывать активности.
+              <Link href="/login" className="font-semibold text-accent-strong underline">Войди через Telegram</Link>, чтобы записывать активности.
             </p>
           )}
         </div>
