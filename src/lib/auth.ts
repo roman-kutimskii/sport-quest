@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { redirect } from "next/navigation";
 import { cache } from "react";
@@ -29,9 +29,13 @@ export function parseSessionValue(raw: string | undefined): string | null {
 
 export const getCurrentUser = cache(async () => {
   const store = await cookies();
-  const userId = parseSessionValue(store.get(SESSION_COOKIE)?.value);
-  if (!userId) return null;
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const raw = store.get(SESSION_COOKIE)?.value;
+  const userId = parseSessionValue(raw);
+  const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
+  if (process.env.AUTH_DEBUG) {
+    const h = await headers();
+    console.log(`[auth] rawLen=${raw?.length ?? 0} allCookies=${store.getAll().map((c) => c.name).join(",")} userId=${userId} found=${!!user} ua=${(h.get("user-agent") ?? "").slice(0, 40)}`);
+  }
   if (!user || !user.isActive) return null;
   return user;
 });

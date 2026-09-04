@@ -21,6 +21,7 @@ services:
       DATABASE_URL: postgresql://sportquest:${POSTGRES_PASSWORD}@db:5432/sportquest
       SESSION_SECRET: ${SESSION_SECRET}
       UPLOAD_DIR: /data/uploads
+      AUTH_DEBUG: ${AUTH_DEBUG:-}
       SEED_SAMPLES: ${SEED_SAMPLES:-0}
       PUBLIC_URL: https://${DOMAIN}
     volumes:

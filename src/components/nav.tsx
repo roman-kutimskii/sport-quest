@@ -41,7 +41,7 @@ export function Nav({ user }: { user: NavUser }) {
           <div className="flex items-center gap-2 text-sm">
             <span className="text-xl" aria-hidden>{user.avatarEmoji}</span>
             <span className="hidden font-medium sm:inline">{user.name}</span>
-            <Link href="/logout" className="text-xs text-fgm hover:text-fg">выйти</Link>
+            <form action="/logout" method="post"><button className="text-xs text-fgm hover:text-fg">выйти</button></form>
           </div>
         ) : (
           <Link href="/login" className="btn-ghost !py-1.5">Войти</Link>
