@@ -37,6 +37,8 @@ model User {
   reports        Report[]
   adjustments    Adjustment[]
   reviewed       Report[]     @relation("Reviewer")
+  votesCast      AmbassadorVote[] @relation("Voter")
+  votesReceived  AmbassadorVote[] @relation("Candidate")
 }
 
 model Quest {
@@ -47,10 +49,12 @@ model Quest {
   timezone    String   @default("Europe/Moscow")
   autoApprove Boolean  @default(true)
   resultsPublished Boolean @default(false)
+  votingOpen  Boolean  @default(false)
   isActive    Boolean  @default(true)
   reports     Report[]
   adjustments Adjustment[]
   nominations NominationResult[]
+  ambassadorVotes AmbassadorVote[]
 }
 
 model Report {
@@ -64,7 +68,7 @@ model Report {
   steps        Int?
   durationMin  Int?
   comment      String?
-  proofUrls    String[]
+  proofUrls    String[]     @default([])
   status       ReportStatus @default(PENDING)
   reviewedById String?
   reviewedAt   DateTime?
@@ -101,4 +105,18 @@ model NominationResult {
   quest       Quest    @relation(fields: [questId], references: [id])
 
   @@unique([questId, key])
+}
+
+model AmbassadorVote {
+  id          String   @id @default(cuid())
+  questId     String
+  voterId     String
+  candidateId String
+  createdAt   DateTime @default(now())
+  quest       Quest    @relation(fields: [questId], references: [id])
+  voter       User     @relation("Voter", fields: [voterId], references: [id])
+  candidate   User     @relation("Candidate", fields: [candidateId], references: [id])
+
+  @@unique([questId, voterId])
+  @@index([questId, candidateId])
 }

@@ -66,6 +66,7 @@ export async function updateQuestSettings(formData: FormData) {
     data: {
       autoApprove: formData.get("autoApprove") === "on",
       resultsPublished: formData.get("resultsPublished") === "on",
+      votingOpen: formData.get("votingOpen") === "on",
     },
   });
   refreshAll();

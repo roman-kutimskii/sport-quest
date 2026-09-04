@@ -20,5 +20,6 @@ export type {
   Report,
   Adjustment,
   NominationResult,
+  AmbassadorVote,
 } from "@/generated/prisma/client";
 export { Prisma, ReportKind, ReportStatus, AwardType } from "@/generated/prisma/client";

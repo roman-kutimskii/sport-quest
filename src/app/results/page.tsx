@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { computeNominations, getActiveQuest, getLeaderboard, questDates } from "@/lib/quest";
+import { ambassadorWinner, computeNominations, getActiveQuest, getAmbassadorTally, getLeaderboard, questDates } from "@/lib/quest";
 import { NOMINATIONS } from "@/lib/nominations";
 import { daysBetween, formatRuDate } from "@/lib/scoring/dates";
 import { Pumpkins } from "@/components/pumpkins";
@@ -22,15 +22,26 @@ export default async function ResultsPage() {
       </div>
     );
   }
-  const rows = await getLeaderboard(quest);
+  const [rows, tally, manual] = await Promise.all([
+    getLeaderboard(quest),
+    getAmbassadorTally(quest),
+    prisma.nominationResult.findMany({ where: { questId: quest.id } }),
+  ]);
   const auto = computeNominations(rows);
-  const manual = await prisma.nominationResult.findMany({ where: { questId: quest.id } });
+  const ambassador = ambassadorWinner(tally);
   const byId = (id: string) => rows.find((r) => r.user.id === id)?.user;
   const winners = NOMINATIONS.map((n) => {
     const m = manual.find((x) => x.key === n.key);
-    const user = m ? byId(m.userId) : n.key === "pumpkinLord" ? auto.pumpkinLord?.user : n.key === "frodo" ? auto.frodo?.user : n.key === "bingoMaster" ? auto.bingoMaster?.row.user : undefined;
+    const user = m
+      ? byId(m.userId)
+      : n.key === "pumpkinLord" ? auto.pumpkinLord?.user
+      : n.key === "frodo" ? auto.frodo?.user
+      : n.key === "bingoMaster" ? auto.bingoMaster?.row.user
+      : n.key === "ambassador" ? ambassador ?? undefined
+      : undefined;
     return { ...n, user, manual: !!m };
   });
+  const totalVotes = tally.reduce((s, t) => s + t.votes, 0);
 
   return (
     <div className="space-y-6">
@@ -45,6 +56,9 @@ export default async function ResultsPage() {
             <h2 className="mt-2 text-lg font-bold">«{w.title}»</h2>
             <p className="text-xs text-fgm">{w.subtitle}</p>
             <div className="mt-4 text-2xl font-bold">{w.user ? `${w.user.avatarEmoji} ${w.user.name}` : "—"}</div>
+            {w.key === "ambassador" && !w.manual && totalVotes > 0 && (
+              <p className="mt-1 text-xs text-fgm">{tally[0].votes} из {totalVotes} голосов</p>
+            )}
           </div>
         ))}
       </div>

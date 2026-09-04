@@ -1,6 +1,6 @@
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { computeNominations, getActiveQuest, getLeaderboard } from "@/lib/quest";
+import { ambassadorWinner, computeNominations, getActiveQuest, getAmbassadorTally, getLeaderboard } from "@/lib/quest";
 import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
 import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Proofs } from "@/components/proof";
@@ -13,17 +13,21 @@ export default async function AdminPage() {
   await requireAdmin();
   const quest = await getActiveQuest();
 
-  const [pending, users, rows, manual] = await Promise.all([
+  const [pending, users, rows, manual, tally] = await Promise.all([
     prisma.report.findMany({ where: { questId: quest.id, status: "PENDING" }, include: { user: true }, orderBy: { createdAt: "asc" } }),
     prisma.user.findMany({ orderBy: [{ isActive: "desc" }, { name: "asc" }] }),
     getLeaderboard(quest),
     prisma.nominationResult.findMany({ where: { questId: quest.id } }),
+    getAmbassadorTally(quest),
   ]);
   const auto = computeNominations(rows);
+  const ambassador = ambassadorWinner(tally);
+  const totalVotes = tally.reduce((s, t) => s + t.votes, 0);
   const autoWinner: Record<string, string | undefined> = {
     pumpkinLord: auto.pumpkinLord?.user.name,
     frodo: auto.frodo?.user.name,
     bingoMaster: auto.bingoMaster?.row.user.name,
+    ambassador: ambassador?.name ?? (totalVotes > 0 ? "ничья" : undefined),
   };
 
   return (
@@ -98,7 +102,7 @@ export default async function AdminPage() {
 
       <section className="card p-5">
         <h2 className="font-bold">Номинации</h2>
-        <p className="mt-1 text-xs text-fgm">Автоматически считаются три номинации; здесь можно переопределить любую и назначить «Амбассадора Осени».</p>
+        <p className="mt-1 text-xs text-fgm">Три номинации считаются по баллам, «Амбассадор Осени» — по голосованию участников. Здесь можно переопределить любую.</p>
         <div className="mt-3 space-y-2 text-sm">
           {NOMINATIONS.map((n) => {
             const m = manual.find((x) => x.key === n.key);
@@ -119,10 +123,27 @@ export default async function AdminPage() {
       </section>
 
       <section className="card p-5">
+        <h2 className="font-bold">📸 Голосование за Амбассадора <span className="text-fgm">({totalVotes} голосов · {quest.votingOpen ? "открыто" : "закрыто"})</span></h2>
+        {tally.length === 0 ? (
+          <p className="mt-2 text-sm text-fgm">Голосов пока нет.</p>
+        ) : (
+          <ol className="mt-3 divide-y divide-line text-sm">
+            {tally.map((t) => (
+              <li key={t.candidate.id} className="flex items-center gap-3 py-2">
+                <span className="flex-1 font-semibold">{t.candidate.avatarEmoji} {t.candidate.name}</span>
+                <span className="tabular-nums">{t.votes}</span>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <section className="card p-5">
         <h2 className="font-bold">Настройки квеста</h2>
         <form action={updateQuestSettings} className="mt-3 space-y-2 text-sm">
           <label className="flex items-center gap-2"><input type="checkbox" name="autoApprove" defaultChecked={quest.autoApprove} className="h-4 w-4 accent-accent" /> Засчитывать отчёты сразу (без модерации)</label>
           <label className="flex items-center gap-2"><input type="checkbox" name="resultsPublished" defaultChecked={quest.resultsPublished} className="h-4 w-4 accent-accent" /> Опубликовать итоги (страница «Итоги» видна всем)</label>
+          <label className="flex items-center gap-2"><input type="checkbox" name="votingOpen" defaultChecked={quest.votingOpen} className="h-4 w-4 accent-accent" /> Открыть голосование за «Амбассадора Осени»</label>
           <button className="btn-primary">Сохранить</button>
         </form>
       </section>

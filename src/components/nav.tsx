@@ -4,12 +4,13 @@ import { usePathname } from "next/navigation";
 
 type NavUser = { id: string; name: string; avatarEmoji: string; isAdmin: boolean } | null;
 
-export function Nav({ user }: { user: NavUser }) {
+export function Nav({ user, votingOpen }: { user: NavUser; votingOpen: boolean }) {
   const path = usePathname();
   const links: { href: string; label: string; show: boolean }[] = [
     { href: "/", label: "Таблица", show: true },
     { href: "/log", label: "＋ Отчёт", show: !!user },
     { href: user ? `/u/${user.id}` : "/login", label: "Мой профиль", show: !!user },
+    { href: "/vote", label: "📸 Голосование", show: !!user && votingOpen },
     { href: "/rules", label: "Правила", show: true },
     { href: "/results", label: "Итоги", show: true },
     { href: "/admin", label: "Админка", show: !!user?.isAdmin },

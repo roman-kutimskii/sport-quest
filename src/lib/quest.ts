@@ -99,3 +99,30 @@ export function computeNominations(rows: LeaderboardRow[]): Nominations {
     bingoMaster: masters[0] ?? null,
   };
 }
+
+export type AmbassadorTally = {
+  candidate: { id: string; name: string; avatarEmoji: string };
+  votes: number;
+}[];
+
+/** Votes for «Амбассадор Осени», most-voted first; only active candidates count. */
+export const getAmbassadorTally = cache(async (quest: Quest): Promise<AmbassadorTally> => {
+  const votes = await prisma.ambassadorVote.findMany({
+    where: { questId: quest.id, candidate: { isActive: true } },
+    include: { candidate: { select: { id: true, name: true, avatarEmoji: true } } },
+  });
+  const map = new Map<string, AmbassadorTally[number]>();
+  for (const v of votes) {
+    const e = map.get(v.candidateId) ?? { candidate: v.candidate, votes: 0 };
+    e.votes += 1;
+    map.set(v.candidateId, e);
+  }
+  return [...map.values()].sort((a, b) => b.votes - a.votes || a.candidate.name.localeCompare(b.candidate.name));
+});
+
+/** Leader of the poll, or null if nobody voted or the top spot is tied. */
+export function ambassadorWinner(tally: AmbassadorTally) {
+  if (tally.length === 0) return null;
+  if (tally.length > 1 && tally[1].votes === tally[0].votes) return null;
+  return tally[0].candidate;
+}
