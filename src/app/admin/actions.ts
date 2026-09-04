@@ -50,8 +50,9 @@ export async function createParticipant(formData: FormData) {
   await requireAdmin();
   const name = String(formData.get("name") ?? "").trim().slice(0, 60);
   const avatarEmoji = String(formData.get("avatarEmoji") ?? "").trim().slice(0, 8) || "🏃";
+  const telegramHandle = String(formData.get("telegramHandle") ?? "").trim().replace(/^@/, "").slice(0, 32) || null;
   if (!name) return;
-  await prisma.user.create({ data: { name, avatarEmoji } });
+  await prisma.user.create({ data: { name, avatarEmoji, telegramHandle } });
   refreshAll();
 }
 

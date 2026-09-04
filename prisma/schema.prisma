@@ -30,6 +30,7 @@ model User {
   name           String
   avatarEmoji    String       @default("🏃")
   telegramHandle String?
+  telegramId     BigInt?      @unique
   isAdmin        Boolean      @default(false)
   isActive       Boolean      @default(true)
   inviteToken    String       @unique @default(cuid())

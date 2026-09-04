@@ -78,6 +78,9 @@ export default async function AdminPage() {
             return (
               <li key={u.id} className={`flex flex-wrap items-center gap-2 py-2 ${u.isActive ? "" : "opacity-50"}`}>
                 <span className="w-40 font-semibold">{u.avatarEmoji} {u.name}{u.isAdmin && " 👑"}</span>
+                <span className="w-28 truncate text-xs text-fgm" title={u.telegramId ? "Telegram привязан" : "Telegram не привязан"}>
+                  {u.telegramHandle ? `@${u.telegramHandle}` : "—"}{u.telegramId ? " ✅" : ""}
+                </span>
                 <code className="min-w-0 flex-1 truncate rounded bg-muted px-2 py-1 text-xs">{link}</code>
                 <CopyButton text={link} />
                 <form action={toggleUser} className="flex gap-1">
@@ -92,6 +95,7 @@ export default async function AdminPage() {
         <form action={createParticipant} className="mt-4 flex flex-wrap gap-2">
           <input name="avatarEmoji" className="input !w-20" placeholder="🦊" />
           <input name="name" className="input !w-56" placeholder="Имя участника" required />
+          <input name="telegramHandle" className="input !w-40" placeholder="@telegram" />
           <button className="btn-primary">Добавить</button>
         </form>
       </section>

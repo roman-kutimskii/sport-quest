@@ -24,6 +24,8 @@ services:
       AUTH_DEBUG: ${AUTH_DEBUG:-}
       SEED_SAMPLES: ${SEED_SAMPLES:-0}
       PUBLIC_URL: https://${DOMAIN}
+      TELEGRAM_CLIENT_ID: ${TELEGRAM_CLIENT_ID:-}
+      TELEGRAM_CLIENT_SECRET: ${TELEGRAM_CLIENT_SECRET:-}
     volumes:
       - uploads:/data/uploads
     depends_on:
