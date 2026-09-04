@@ -67,7 +67,6 @@ export default async function AdminPage() {
 
       <section className="card p-5">
         <h2 className="font-bold">Участники</h2>
-        <p className="mt-1 text-xs text-fgm">Аккаунт создаётся автоматически при первом входе через Telegram.</p>
         <ul className="mt-3 divide-y divide-line text-sm">
           {users.map((u) => {
             return (

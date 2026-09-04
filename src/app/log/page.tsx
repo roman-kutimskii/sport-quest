@@ -17,11 +17,9 @@ export default async function LogPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-2xl font-bold">Записать отчёт 🎃</h1>
-      <p className="text-sm text-fgm">
-        {quest.autoApprove
-          ? "Отчёт засчитывается сразу. Организатор может отклонить его позже, если что-то не так."
-          : "Отчёт попадёт на проверку организатору и засчитается после одобрения."}
-      </p>
+      {!quest.autoApprove && (
+        <p className="text-sm text-fgm">Отчёт попадёт на проверку организатору и засчитается после одобрения.</p>
+      )}
       <LogForm
         min={start}
         max={today < end ? today : end}
