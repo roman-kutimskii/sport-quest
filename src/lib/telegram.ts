@@ -1,5 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet, customFetch, jwtVerify } from "jose";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 /**
  * Telegram Login via OpenID Connect (Authorization Code + PKCE).
@@ -8,7 +9,20 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 export const TG_ISSUER = "https://oauth.telegram.org";
 export const TG_AUTH_URL = `${TG_ISSUER}/auth`;
 export const TG_TOKEN_URL = `${TG_ISSUER}/token`;
-const TG_JWKS = createRemoteJWKSet(new URL(`${TG_ISSUER}/.well-known/jwks.json`));
+
+/**
+ * Telegram is unreachable from the production host (blocked at ISP level), so
+ * the two server-to-server calls go through an outbound HTTP proxy when
+ * TELEGRAM_PROXY_URL is set. Nothing else in the app uses the proxy.
+ */
+const proxyUrl = process.env.TELEGRAM_PROXY_URL;
+const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
+const tgFetch = (url: string, init?: Parameters<typeof undiciFetch>[1]) =>
+  undiciFetch(url, { ...init, dispatcher }) as unknown as Promise<Response>;
+
+const TG_JWKS = createRemoteJWKSet(new URL(`${TG_ISSUER}/.well-known/jwks.json`), {
+  [customFetch]: (url, opts) => tgFetch(url, { method: opts.method, headers: opts.headers, signal: opts.signal }),
+});
 
 export const clientId = () => process.env.TELEGRAM_CLIENT_ID ?? "";
 export const clientSecret = () => process.env.TELEGRAM_CLIENT_SECRET ?? "";
@@ -46,7 +60,7 @@ export function buildAuthUrl(flow: TelegramFlow, redirectUri: string) {
 export type TelegramIdentity = { id: string; username?: string; name?: string; picture?: string };
 
 export async function exchangeCode(code: string, redirectUri: string, flow: TelegramFlow): Promise<TelegramIdentity> {
-  const res = await fetch(TG_TOKEN_URL, {
+  const res = await tgFetch(TG_TOKEN_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
@@ -58,8 +72,7 @@ export async function exchangeCode(code: string, redirectUri: string, flow: Tele
       redirect_uri: redirectUri,
       client_id: clientId(),
       code_verifier: flow.verifier,
-    }),
-    cache: "no-store",
+    }).toString(),
   });
   if (!res.ok) throw new Error(`token endpoint ${res.status}: ${(await res.text()).slice(0, 200)}`);
   // Telegram returns errors with HTTP 200, e.g. {"error":"invalid_grant"}.

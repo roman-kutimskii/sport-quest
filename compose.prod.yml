@@ -26,6 +26,7 @@ services:
       PUBLIC_URL: https://${DOMAIN}
       TELEGRAM_CLIENT_ID: ${TELEGRAM_CLIENT_ID:-}
       TELEGRAM_CLIENT_SECRET: ${TELEGRAM_CLIENT_SECRET:-}
+      TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
     volumes:
       - uploads:/data/uploads
     depends_on:
