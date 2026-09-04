@@ -12,6 +12,9 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # prisma.config.ts requires it to resolve; generate/lint/test never connect.
+    env:
+      DATABASE_URL: postgresql://user:pass@localhost:5432/db
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
