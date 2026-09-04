@@ -43,10 +43,12 @@ export type ScoreBreakdown = {
 };
 
 export const STEPS_ACTIVE_THRESHOLD = 10_000;
-export const STREAK_AWARDS: Record<number, { type: StreakAward["type"]; pumpkins: number }> = {
-  3: { type: "STREAK_3", pumpkins: 2 },
-  5: { type: "STREAK_5", pumpkins: 5 },
-  7: { type: "STREAK_7", pumpkins: 10 },
+// Only the highest milestone reached within one streak counts (3 → 2, 5 → 5, 7 → 10, not summed).
+// `pumpkins` on an award is the increment over the previous milestone so awards sum to the highest value.
+export const STREAK_MILESTONES: Record<number, { type: StreakAward["type"]; total: number }> = {
+  3: { type: "STREAK_3", total: 2 },
+  5: { type: "STREAK_5", total: 5 },
+  7: { type: "STREAK_7", total: 10 },
 };
 export const INVULNERABLE_DAYS = 7;
 
@@ -73,7 +75,7 @@ export function computeScore(input: ScoringInput): ScoreBreakdown {
   for (const r of approved) {
     const steps = r.steps ?? 0;
     if (steps > 0) stepsByDay.set(r.date, Math.max(stepsByDay.get(r.date) ?? 0, steps));
-    if (r.kind === "ACTIVITY" || steps >= STEPS_ACTIVE_THRESHOLD) activeSet.add(r.date);
+    if (r.kind === "ACTIVITY" || r.kind === "BINGO" || steps >= STEPS_ACTIVE_THRESHOLD) activeSet.add(r.date);
   }
   const activeDays = [...activeSet].sort();
   let totalSteps = 0;
@@ -96,6 +98,7 @@ export function computeScore(input: ScoringInput): ScoreBreakdown {
   const awards: StreakAward[] = [];
   const dayMap: Record<string, DayInfo> = {};
   let counter = 0; // resetting award counter
+  let awardedInStreak = 0; // highest milestone value already granted in the current counter cycle
   let raw = 0; // real consecutive count
   let currentStreak = 0;
   let lastStreak7: string | null = null;
@@ -105,19 +108,22 @@ export function computeScore(input: ScoringInput): ScoreBreakdown {
     if (active) {
       counter += 1;
       raw += 1;
-      const award = STREAK_AWARDS[counter];
+      const award = STREAK_MILESTONES[counter];
       if (award) {
-        awards.push({ type: award.type, date: d, pumpkins: award.pumpkins });
+        awards.push({ type: award.type, date: d, pumpkins: award.total - awardedInStreak });
+        awardedInStreak = award.total;
         info.awards.push(award.type);
         if (award.type === "STREAK_7") {
           lastStreak7 = d;
           counter = 0;
+          awardedInStreak = 0;
         }
       }
       currentStreak = raw;
     } else {
       counter = 0;
       raw = 0;
+      awardedInStreak = 0;
       // Today being inactive does not break the displayed streak (ending yesterday).
       if (d !== today) currentStreak = 0;
       if (pendingDays.has(d)) info.pending = true;

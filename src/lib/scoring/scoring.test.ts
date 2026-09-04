@@ -36,26 +36,40 @@ describe("dates", () => {
 });
 
 describe("streaks", () => {
-  it("7-day streak -> 17 bonus and invulnerable for 7 days", () => {
+  it("7-day streak -> 10 bonus (highest only) and invulnerable for 7 days", () => {
     const today = addDays(START, 6);
     const r = score(activeRun(7), today);
-    expect(r.streakBonus).toBe(17);
+    expect(r.streakBonus).toBe(10);
     expect(r.awards.map((a) => a.type)).toEqual(["STREAK_3", "STREAK_5", "STREAK_7"]);
+    expect(r.awards.map((a) => a.pumpkins)).toEqual([2, 3, 5]);
     expect(r.awards[2].date).toBe(today);
     expect(r.invulnerableUntil).toBe(addDays(today, 6));
     expect(r.currentStreak).toBe(7);
-    expect(r.total).toBe(7 + 17);
+    expect(r.total).toBe(7 + 10);
     // still invulnerable on day 6 after the award, not on day 7
     expect(score(activeRun(7), addDays(today, 6)).invulnerableUntil).toBe(addDays(today, 6));
     expect(score(activeRun(7), addDays(today, 7)).invulnerableUntil).toBeNull();
   });
-  it("8-day -> 17, 10-day -> 19, 14-day -> 34", () => {
-    expect(score(activeRun(8), addDays(START, 7)).streakBonus).toBe(17);
+  it("3-day -> 2, 5-day -> 5, 6-day -> 5 (highest milestone only)", () => {
+    expect(score(activeRun(3), addDays(START, 2)).streakBonus).toBe(2);
+    expect(score(activeRun(4), addDays(START, 3)).streakBonus).toBe(2);
+    expect(score(activeRun(5), addDays(START, 4)).streakBonus).toBe(5);
+    expect(score(activeRun(6), addDays(START, 5)).streakBonus).toBe(5);
+  });
+  it("counter resets after 7: 8-day -> 10, 10-day -> 12, 12-day -> 15, 14-day -> 20", () => {
+    expect(score(activeRun(8), addDays(START, 7)).streakBonus).toBe(10);
     const r10 = score(activeRun(10), addDays(START, 9));
-    expect(r10.streakBonus).toBe(19);
+    expect(r10.streakBonus).toBe(12);
     expect(r10.currentStreak).toBe(10);
-    expect(score(activeRun(12), addDays(START, 11)).streakBonus).toBe(24);
-    expect(score(activeRun(14), addDays(START, 13)).streakBonus).toBe(34);
+    expect(score(activeRun(12), addDays(START, 11)).streakBonus).toBe(15);
+    expect(score(activeRun(14), addDays(START, 13)).streakBonus).toBe(20);
+  });
+  it("broken streak keeps the bonus already earned and starts over", () => {
+    // 5 active days (+5), gap, then 3 active days (+2)
+    const reports = [...activeRun(5), ...activeRun(3, addDays(START, 6))];
+    const r = score(reports, addDays(START, 8));
+    expect(r.streakBonus).toBe(7);
+    expect(r.currentStreak).toBe(3);
   });
   it("gap resets streak", () => {
     // days 0,1 active, day 2 skipped, days 3,4 active -> no award
@@ -126,7 +140,7 @@ describe("bingo", () => {
     expect(r.bingoCompleted).toHaveLength(1);
     expect(r.bingoCompleted[0].date).toBe(START);
     expect(r.bingoPoints).toBe(3);
-    expect(r.activeDays).toEqual([]); // bingo alone is not active
+    expect(r.activeDays).toEqual([START, addDays(START, 1)]); // bingo alone makes the day active
     expect(r.dayMap[START].bingoKey).toBe("tea");
   });
   it("two bingo on same day -> only first by id counts", () => {
@@ -144,6 +158,13 @@ describe("bingo", () => {
   it("unknown keys ignored", () => {
     expect(score([act(START, { kind: "BINGO", bingoKey: "nope" })], START).bingoPoints).toBe(0);
   });
+  it("bingo day counts as active and contributes to streaks", () => {
+    const reports = [act(START), act(addDays(START, 1), { kind: "BINGO", bingoKey: "tea" }), act(addDays(START, 2))];
+    const r = score(reports, addDays(START, 2));
+    expect(r.activeDayCount).toBe(3);
+    expect(r.streakBonus).toBe(2);
+    expect(r.total).toBe(3 + 2 + 3);
+  });
 });
 
 describe("total", () => {
@@ -151,7 +172,7 @@ describe("total", () => {
     const reports = [...activeRun(3), act(addDays(START, 1), { kind: "BINGO", bingoKey: "early" })];
     const r = score(reports, addDays(START, 2), [{ delta: 5 }, { delta: -2 }]);
     expect(r.adjustments).toBe(3);
-    expect(r.total).toBe(3 + 2 + 3 + 3);
+    expect(r.total).toBe(3 + 2 + 3 + 3); // 3 active days + streak_3 + bingo + adjustments
   });
   it("dayMap shape", () => {
     const r = score([act(START, { steps: 500 })], addDays(START, 1));

@@ -49,11 +49,12 @@ A streak is a run of consecutive active days. Bonuses are awarded when a streak 
 | 5 days | +5 🎃 |
 | 7 days | +10 🎃 and title «Неуязвимый» for 7 days |
 
-Interpretation decisions (must be confirmed with the organizer, defaults below):
-- Bonuses are **cumulative** within one streak: a 7-day streak yields 2 + 5 + 10 = 17 bonus 🎃.
+Interpretation decisions (confirmed with the organizer, 2026-09-04):
+- Only the **highest** milestone reached within one streak counts: a 7-day streak yields 10 bonus 🎃
+  (not 2 + 5 + 10). Reaching 5 replaces the +2 with +5; reaching 7 replaces the +5 with +10.
 - After 7 days the counter **resets** and the next 7 consecutive days award the bonuses again
-  (day 10 gives +2, day 12 gives +5, day 14 gives +10, etc.).
-- One missed day breaks the streak; the next active day starts a new streak at 1.
+  (day 10 gives +2, day 12 gives +5 instead, day 14 gives +10 instead, etc.).
+- One missed day breaks the streak; bonuses already earned are kept, the next active day starts a new streak at 1.
 - The «Неуязвимый» title is displayed on the profile and leaderboard for 7 days from the award date.
 
 ### 3.3 Autumn Bingo — +3 🎃 per task
@@ -75,9 +76,8 @@ Maximum +27 🎃.
 Validation: reject a bingo report if the task is already approved for this participant, or if another
 bingo task is already approved for the same date.
 
-A bingo task does **not** by itself mark a day active. A participant normally submits both an
-activity report and a bingo report for the day; the UI should offer "also counts as today's
-activity" checkbox to create both at once.
+An approved bingo task **does** mark the day active (confirmed with the organizer, 2026-09-04),
+so a bingo day earns the base 🎃 and extends the streak like any activity.
 
 ### 3.4 Steps
 Participants may attach a step count to any day (integer). Total steps across the quest feed the
@@ -151,16 +151,17 @@ Constraints:
 
 Pure function `computeScore(reports[], adjustments[], quest) -> ScoreBreakdown`:
 
-1. Build `activeDays: Set<date>` from approved reports where `kind = activity` or `steps ≥ 10000`.
+1. Build `activeDays: Set<date>` from approved reports where `kind ∈ {activity, bingo}` or `steps ≥ 10000`.
 2. Walk days from `start_date` to `min(today, end_date)`; maintain current streak length.
-   On reaching 3 / 5 / 7 emit awards; on 7 reset streak counter to 0.
+   On reaching 3 / 5 / 7 emit awards whose value is the increment over the previous milestone
+   (2, 3, 5) so the streak total equals the highest milestone; on 7 reset streak counter to 0.
 3. Collect approved bingo reports → 3 🎃 each.
 4. Sum adjustments.
 5. Return `{ activeDays, streakBonus, bingoPoints, adjustments, total, currentStreak, awards[] }`.
 
 Must be deterministic and covered by unit tests, including:
-- 7-day streak → 17 bonus, title valid 7 days.
-- 8-day streak → 17 + 0; 10-day streak → 19.
+- 7-day streak → 10 bonus, title valid 7 days.
+- 8-day streak → 10; 10-day streak → 12; 14-day streak → 20.
 - Gap of one day resets streak.
 - Two bingo tasks on one day → second rejected.
 - Retroactive approval of an earlier day recomputes streaks correctly.
@@ -218,16 +219,16 @@ Must be deterministic and covered by unit tests, including:
 
 ## 11. Open Questions for the Organizer
 
-MVP defaults (implemented, 2026-09-03): 1 — cumulative, resets after 7; 2 — no; 3 — yes; 4 — auto-approve on,
-admin can switch to moderation; 5 — any date within the quest, up to today; 6 — single quest timezone (Europe/Moscow).
-Auth is Telegram OpenID Connect; any Telegram account may sign in and gets a participant created. Notifications and CSV export are not built yet.
+All resolved with the organizer on 2026-09-04 (implemented):
 
-1. Streak bonuses: cumulative (2+5+10) or only the highest reached? Does the counter reset after 7?
-2. Does a bingo task alone count as the day's activity?
-3. Do steps ≥10 000 plus a workout on the same day still give only 1 🎃? (Assumed yes.)
-4. Should reports be auto-approved with post-hoc rejection, or moderated first?
-5. Can a participant backfill a missed day, and how long after the date?
-6. Timezone for «before 07:30» and day boundaries — participants in different timezones?
+1. Streak bonuses: only the highest milestone reached counts; the counter resets after day 7 or on a missed day.
+2. A bingo task alone counts as the day's activity.
+3. Steps ≥10 000 plus a workout on the same day give only 1 🎃.
+4. Reports are auto-approved with post-hoc rejection (admin can switch to moderation).
+5. Backfilling: any date within the quest, up to today.
+6. Single quest timezone (Europe/Moscow).
+
+Auth is Telegram OpenID Connect; any Telegram account may sign in and gets a participant created. Notifications and CSV export are not built yet.
 
 ## 12. Milestones
 1. **M1 — Core (week 1):** auth, data model, log activity, scoring engine with tests, leaderboard.
