@@ -3,14 +3,15 @@
  * through the bot pipeline, without sending anything to the chat.
  *
  *   npx tsx scripts/bot-import.ts --dir ~/Downloads/ChatExport_2026-09-05 [--since 2026-09-03] [--until <ISO>]
- *                                 [--map user123=<userId> ...] [--apply]
+ *                                 [--map user123=<userId> ...] [--create-accounts] [--apply]
  *
  * Dry run by default: classifies every message (results cached in <dir>/import-cache.json so
  * --apply does not call the LLM again) and prints what would be filed next to what the site
  * already has for that person and day. --apply writes TelegramLink rows and reports.
  *
  * Rules: messages the bot already saw (same chat/message id) are skipped; accounts are never
- * created (unmatched senders are listed, map them with --map); the «ask» band is recorded but not
+ * created unless --create-accounts is given, and then only for a sender whose message is filed as a
+ * report, exactly like the live bot (unmatched senders are listed, map them with --map); the «ask» band is recorded but not
  * filed; bingo is filed only when named in the text; same-day merge rules of createReport apply.
  */
 import "dotenv/config";
@@ -28,16 +29,17 @@ import { exportChatId, exportMediaKind, exportText, exportUnixTime, groupExportM
 import { OpenAiCompatLlm, RateLimiter } from "@/lib/bot/llm";
 import { toJson, type StoredExtraction } from "@/lib/bot/ingest";
 
-type Args = { dir: string; since: string; until: string | null; apply: boolean; map: Record<string, string> };
+type Args = { dir: string; since: string; until: string | null; apply: boolean; create: boolean; map: Record<string, string> };
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dir: "", since: "", until: null, apply: false, map: {} };
+  const a: Args = { dir: "", since: "", until: null, apply: false, create: false, map: {} };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === "--dir") a.dir = argv[++i];
     else if (v === "--since") a.since = argv[++i];
     else if (v === "--until") a.until = argv[++i];
     else if (v === "--apply") a.apply = true;
+    else if (v === "--create-accounts") a.create = true;
     else if (v === "--map") {
       const m = /^user(\d+)=(.+)$/.exec(argv[++i] ?? "");
       if (!m) throw new Error("--map expects user<telegram id>=<site user id>");
@@ -81,7 +83,7 @@ async function main() {
 
   const unknown = new Map<string, string>();
   const rows: string[] = [];
-  let filed = 0, merged = 0, asked = 0, skipped = 0;
+  let filed = 0, merged = 0, asked = 0, skipped = 0, created = 0;
 
   for (const group of groups) {
     const primary = group.find((m) => exportText(m)) ?? group[0];
@@ -89,9 +91,9 @@ async function main() {
     if (group.some((m) => m.forwarded_from)) continue;
     const sender = matchSender(primary, users, args.map);
     const tgId = senderId(primary)!;
-    if (!sender) { unknown.set(tgId, primary.from ?? "?"); continue; }
-    const user: User = sender.user;
-    if (!user.isActive) continue;
+    if (!sender && !args.create) { unknown.set(tgId, primary.from ?? "?"); continue; }
+    let user: User | null = sender?.user ?? null;
+    if (user && !user.isActive) continue;
 
     const unix = exportUnixTime(primary);
     const messageDate = dateInTz(unix, cfg.timezone);
@@ -112,7 +114,7 @@ async function main() {
       if (mime.startsWith("image/") && data.length <= MAX_LLM_IMAGE_BYTES && images.length < LIMITS.maxPhotos) images.push({ data, mime });
     }
 
-    const closed = await prisma.report.findMany({ where: { userId: user.id, questId: quest.id, kind: ReportKind.BINGO, status: { not: ReportStatus.REJECTED } }, select: { bingoKey: true } });
+    const closed = user ? await prisma.report.findMany({ where: { userId: user.id, questId: quest.id, kind: ReportKind.BINGO, status: { not: ReportStatus.REJECTED } }, select: { bingoKey: true } }) : [];
     const openBingoKeys = BINGO_KEYS.filter((k) => !closed.some((r) => r.bingoKey === k));
 
     const key = String(primary.id);
@@ -121,7 +123,7 @@ async function main() {
       await limiter.acquire();
       cached = await extractReport(llm, {
         todayDate: today, messageDate, messageTime: timeInTz(unix, cfg.timezone), questStart: start, questEnd: end, openBingoKeys,
-        senderName: primary.from ?? user.name, text, mediaKinds: kinds, imageCount: images.length, forwarded: false,
+        senderName: primary.from ?? user?.name ?? "Участник", text, mediaKinds: kinds, imageCount: images.length, forwarded: false,
       }, images);
       cache[key] = cached;
       await writeFile(cachePath, JSON.stringify(cache, null, 1));
@@ -132,7 +134,7 @@ async function main() {
     const resolved = resolveDate(extraction, messageDate, start, end, today);
     const date = "date" in resolved ? resolved.date : null;
 
-    const existing = date
+    const existing = date && user
       ? await prisma.report.findMany({ where: { userId: user.id, questId: quest.id, date: new Date(`${date}T00:00:00.000Z`), status: { not: ReportStatus.REJECTED } } })
       : [];
     const existingLabel = existing.map((r) => (r.kind === "BINGO" ? `бинго ${r.bingoKey}` : r.kind === "STEPS" ? `шаги ${r.steps}` : `${r.activityType}${r.steps ? ` ${r.steps}` : ""}`) + (r.source === "WEB" ? " (сайт)" : " (бот)")).join(", ");
@@ -147,12 +149,13 @@ async function main() {
     else if ("error" in resolved) { action = `дата: ${resolved.error}`; status = TelegramLinkStatus.SKIPPED; error = `date:${resolved.error}`; skipped++; }
     else if (decision.action === "ask") { action = "неясно — вручную"; status = TelegramLinkStatus.SKIPPED; error = "import: uncertain, not filed"; asked++; }
     else if (existing.some((r) => r.kind === "ACTIVITY" || (r.kind === "BINGO"))) { action = "день уже есть → слить"; status = TelegramLinkStatus.SAVED; merged++; }
-    else { action = "записать"; status = TelegramLinkStatus.SAVED; filed++; }
+    else { action = user ? "записать" : "записать + новый участник"; status = TelegramLinkStatus.SAVED; filed++; if (!user) created++; }
     if (decision.bingo === "offer") error = [error, "import: bingo guess not applied"].filter(Boolean).join("; ");
+    if (!user && status !== TelegramLinkStatus.SAVED) { if (!args.apply) unknown.set(tgId, `${primary.from ?? "?"} (не отчёт)`); continue; }
 
     rows.push([
       `${messageDate} ${timeInTz(unix, cfg.timezone)}`.padEnd(17),
-      `${sender.how === "name" ? "≈" : ""}${user.name}`.slice(0, 22).padEnd(23),
+      `${sender?.how === "name" ? "≈" : sender ? "" : "+"}${user?.name ?? primary.from ?? "?"}`.slice(0, 22).padEnd(23),
       (extraction.is_report ? `${extraction.confidence.toFixed(2)}` : "нет").padEnd(5),
       `${act ? `${act.emoji} ${act.key}` : ""}${extraction.steps ? ` ${extraction.steps}` : ""}`.padEnd(14),
       (date ?? "").padEnd(11),
@@ -164,26 +167,34 @@ async function main() {
 
     if (!args.apply) continue;
 
+    if (!user) {
+      // Same as the live bot: an account from the Telegram profile; the later sign-in attaches to it by Telegram id.
+      user = await prisma.user.create({ data: { name: (primary.from ?? "Участник").trim().slice(0, 60) || "Участник", telegramUserId: tgId } });
+      users.push(user);
+      console.log(`  created participant ${user.name} (${tgId})`);
+    }
+    const uid = user.id;
+
     const proofUrls: string[] = [];
     if (status === TelegramLinkStatus.SAVED) for (const f of proofFiles) proofUrls.push(await saveProofBytes(f.data, f.mime));
     const stored: StoredExtraction = { ...extraction, resolvedDate: date, proofUrls, hasMedia, videoTooLarge: false, text };
     const link = await prisma.telegramLink.create({
       data: {
-        chatId, messageId: primary.id, fromUserId: tgId, fromName: primary.from ?? null, userId: user.id,
+        chatId, messageId: primary.id, fromUserId: tgId, fromName: primary.from ?? null, userId: uid,
         messageDate: new Date(unix * 1000), text, mediaKinds: kinds, mediaGroupId: group.length > 1 ? `import:${primary.id}` : null,
         update: toJson({ message_id: primary.id, date: unix, chat: { id: Number(chatId), type: "supergroup" }, from: { id: Number(tgId), is_bot: false, first_name: primary.from ?? "" }, text, imported: true }),
         status, extraction: toJson(stored), llmRaw: raw.slice(0, 20_000), confidence: extraction.confidence, error, processedAt: new Date(),
       },
     });
     for (const m of group) if (m.id !== primary.id) {
-      await prisma.telegramLink.create({ data: { chatId, messageId: m.id, fromUserId: tgId, fromName: primary.from ?? null, userId: user.id, messageDate: new Date(exportUnixTime(m) * 1000), mediaKinds: [exportMediaKind(m) ?? "document"], mediaGroupId: `import:${primary.id}`, status: TelegramLinkStatus.SKIPPED, error: "album sibling", processedAt: new Date() } }).catch(() => undefined);
+      await prisma.telegramLink.create({ data: { chatId, messageId: m.id, fromUserId: tgId, fromName: primary.from ?? null, userId: uid, messageDate: new Date(exportUnixTime(m) * 1000), mediaKinds: [exportMediaKind(m) ?? "document"], mediaGroupId: `import:${primary.id}`, status: TelegramLinkStatus.SKIPPED, error: "album sibling", processedAt: new Date() } }).catch(() => undefined);
     }
     if (status !== TelegramLinkStatus.SAVED || !date) continue;
 
     const bingoKey = decision.bingo === "save" ? extraction.bingo_key : null;
     const activityType = extraction.activity_type ?? (extraction.steps || bingoKey ? null : "other");
-    let res = await createReport({ userId: user.id, quest, date, activityType, steps: extraction.steps, bingoKey, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
-    if (!res.ok && bingoKey) res = await createReport({ userId: user.id, quest, date, activityType: extraction.activity_type ?? (extraction.steps ? null : "other"), steps: extraction.steps, bingoKey: null, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
+    let res = await createReport({ userId: uid, quest, date, activityType, steps: extraction.steps, bingoKey, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
+    if (!res.ok && bingoKey) res = await createReport({ userId: uid, quest, date, activityType: extraction.activity_type ?? (extraction.steps ? null : "other"), steps: extraction.steps, bingoKey: null, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
     if (!res.ok) {
       await prisma.telegramLink.update({ where: { id: link.id }, data: { status: TelegramLinkStatus.FAILED, error: res.error } });
       console.warn(`  message ${primary.id}: ${res.error}`);
@@ -195,9 +206,9 @@ async function main() {
 
   console.log(["дата и время".padEnd(17), "участник".padEnd(23), "conf".padEnd(5), "тип/шаги".padEnd(14), "дата отчёта".padEnd(11), "бинго".padEnd(14), "действие".padEnd(22), "на сайте"].join(" "));
   console.log(rows.join("\n"));
-  console.log(`\nзаписать: ${filed}, слить с существующим днём: ${merged}, неясно (вручную): ${asked}, не отчёт/пропуск: ${skipped}`);
+  console.log(`\nзаписать: ${filed}${created ? ` (из них с новым участником: ${created})` : ""}, слить с существующим днём: ${merged}, неясно (вручную): ${asked}, не отчёт/пропуск: ${skipped}`);
   if (unknown.size) {
-    console.log(`\nНе сопоставлены с участниками (сообщения пропущены; задай --map user<id>=<id участника на сайте>):`);
+    console.log(`\nНе сопоставлены с участниками (${args.create ? "не отчёты, аккаунт не нужен" : "сообщения пропущены; задай --map user<id>=<id участника на сайте> или --create-accounts"}):`);
     for (const [id, name] of unknown) console.log(`  user${id}  ${name}`);
     console.log(`Участники без Telegram id: ${users.filter((u) => !u.telegramUserId).map((u) => `${u.name}=${u.id}`).join(", ")}`);
   }
