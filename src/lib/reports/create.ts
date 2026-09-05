@@ -82,13 +82,20 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
       where: { userId, questId: quest.id, kind: ReportKind.ACTIVITY, date: dateValue, status: { not: ReportStatus.REJECTED } },
       orderBy: { createdAt: "asc" },
     })) ?? undefined;
+    // Steps-only on a day that already has a steps-only row: keep one row with the larger count.
+    if (!existingActivity && stepsOnly) {
+      existingActivity = (await prisma.report.findFirst({
+        where: { userId, questId: quest.id, kind: ReportKind.STEPS, date: dateValue, status: { not: ReportStatus.REJECTED } },
+        orderBy: { createdAt: "asc" },
+      })) ?? undefined;
+    }
   }
 
   const created = await prisma.$transaction(async (tx) => {
     const out: Report[] = [];
     if (existingActivity) {
       const patch: { steps?: number; proofUrls?: string[] } = {};
-      if (!existingActivity.steps && steps) patch.steps = steps;
+      if (steps && (existingActivity.steps ?? 0) < steps && (!existingActivity.steps || existingActivity.kind === ReportKind.STEPS)) patch.steps = steps;
       if (existingActivity.source === ReportSource.TELEGRAM && proofUrls.length) {
         patch.proofUrls = [...existingActivity.proofUrls, ...proofUrls.filter((u) => !existingActivity!.proofUrls.includes(u))];
       }

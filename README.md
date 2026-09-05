@@ -45,6 +45,7 @@ Seed создаёт квест, админа «Роман» и трёх тест
 ```bash
 npm run bot            # локально; нужны переменные из .env.example
 npm run bot:eval       # прогон эвал-набора по промпту (нужен LLM)
+npm run bot:import -- --dir ~/Downloads/ChatExport_…   # импорт истории чата из экспорта Telegram Desktop (JSON); --apply чтобы записать
 ```
 
 ## Скрипты

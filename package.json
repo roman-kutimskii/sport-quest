@@ -13,7 +13,8 @@
     "db:generate": "prisma generate",
     "test": "vitest run",
     "bot": "tsx scripts/bot.ts",
-    "bot:eval": "tsx scripts/bot-eval.ts"
+    "bot:eval": "tsx scripts/bot-eval.ts",
+    "bot:import": "tsx scripts/bot-import.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
