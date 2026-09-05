@@ -121,3 +121,11 @@ export async function mergeParticipants(formData: FormData) {
   await mergeUsers(fromId, intoId);
   refreshAll(intoId);
 }
+
+/** Clears the warning on a saved Telegram row so it leaves the «требует внимания» block. */
+export async function dismissTelegramWarning(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  await prisma.telegramLink.updateMany({ where: { id, status: "SAVED" }, data: { error: null } });
+  revalidatePath("/admin/bot");
+}
