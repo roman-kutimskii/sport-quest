@@ -23,6 +23,12 @@ export const FILTERS: { key: string; label: string; statuses: TelegramLinkStatus
 
 export const ALBUM_SIBLING = "album sibling";
 
+/**
+ * "Not an album sibling", null-safe: Prisma renders `NOT: { error: X }` as bare `NOT (error = X)`,
+ * which is UNKNOWN — and so excludes the row — for the null `error` most rows have.
+ */
+const NOT_ALBUM_SIBLING: Prisma.TelegramLinkWhereInput[] = [{ error: null }, { error: { not: ALBUM_SIBLING } }];
+
 type Extraction = {
   is_report?: boolean; confidence?: number; date?: string | null; activity_type?: string | null;
   steps?: number | null; bingo_key?: string | null; bingo_confidence?: number; summary_ru?: string;
@@ -106,7 +112,7 @@ export async function attention(): Promise<FeedRow[]> {
 
 export async function feed(opts: { statuses: TelegramLinkStatus[]; take: number; since: Date }): Promise<{ rows: FeedRow[]; hasMore: boolean }> {
   const raw = await prisma.telegramLink.findMany({
-    where: { status: { in: opts.statuses }, messageDate: { gte: opts.since }, NOT: { error: ALBUM_SIBLING } },
+    where: { status: { in: opts.statuses }, messageDate: { gte: opts.since }, OR: NOT_ALBUM_SIBLING },
     orderBy: { messageDate: "desc" },
     take: opts.take + 1,
     include: { reports: { select: { id: true } } },
@@ -123,7 +129,7 @@ export async function feed(opts: { statuses: TelegramLinkStatus[]; take: number;
 }
 
 export async function statusCounts(since: Date): Promise<Record<string, number>> {
-  const groups = await prisma.telegramLink.groupBy({ by: ["status"], where: { messageDate: { gte: since }, NOT: { error: ALBUM_SIBLING } }, _count: { _all: true } });
+  const groups = await prisma.telegramLink.groupBy({ by: ["status"], where: { messageDate: { gte: since }, OR: NOT_ALBUM_SIBLING }, _count: { _all: true } });
   return Object.fromEntries(groups.map((g) => [g.status, g._count._all]));
 }
 
@@ -139,7 +145,7 @@ export type UserRollup = {
 /** Per-sender rollup over the range, sorted by most recent message. */
 export async function userRollup(since: Date): Promise<UserRollup[]> {
   const rows = await prisma.telegramLink.findMany({
-    where: { messageDate: { gte: since }, NOT: { error: ALBUM_SIBLING } },
+    where: { messageDate: { gte: since }, OR: NOT_ALBUM_SIBLING },
     select: { userId: true, fromUserId: true, fromName: true, status: true, messageDate: true },
   });
   const withUsers = await attachUsers(rows);
