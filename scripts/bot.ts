@@ -32,6 +32,14 @@ type WorkerDeps = Deps & { botUsername?: string };
 const log = (msg: string) => console.log(`[bot] ${new Date().toISOString()} ${msg}`);
 const logError = (msg: string, e?: unknown) => console.error(`[bot] ${new Date().toISOString()} ${msg}${e !== undefined ? `: ${errorMessage(e)}` : ""}`);
 
+/** Command menu registered with Telegram at startup (spec §2.5). */
+const BOT_COMMANDS = [
+  { command: "me", description: "Мои тыковки, стрик, бинго и шаги" },
+  { command: "top", description: "Топ-10 таблицы лидеров" },
+  { command: "help", description: "Что умеет бот" },
+  { command: "digest", description: "Итоги недели сейчас (для организатора)" },
+];
+
 const POLL_TIMEOUT_SEC = 30;
 const PROCESS_TICK_MS = 1000;
 const OUTBOX_TICK_MS = 3000;
@@ -408,6 +416,7 @@ async function main(): Promise<void> {
   }
   deps.botUsername = me.username;
   await setState(STATE_KEYS.botUsername, me.username ?? null);
+  await api.setMyCommands(BOT_COMMANDS).catch((e) => logError("setMyCommands failed (menu may be stale)", e));
   log(`started as @${me.username ?? me.id}, mode=${cfg.mode}, group=${cfg.groupChatId ?? "(not set — use /id)"}${cfg.groupThreadId ? `/${cfg.groupThreadId}` : ""}, llm=${cfg.llm.model}, proxy=${cfg.proxyUrl ? "on" : "off"}`);
   if (!cfg.llm.baseUrl || !cfg.llm.apiKey) logError("LLM_BASE_URL / LLM_API_KEY not set — message classification will fail");
 

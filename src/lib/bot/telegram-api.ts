@@ -136,6 +136,11 @@ export class TelegramApi {
     return body.result;
   }
 
+  /** Registers the «/» menu shown in chats (`/id` is deliberately left out: it is a setup command). */
+  async setMyCommands(commands: { command: string; description: string }[], scope?: { type: string }): Promise<void> {
+    await this.call<boolean>("setMyCommands", { commands, ...(scope ? { scope } : {}) });
+  }
+
   getMe(): Promise<TgUser> {
     return this.call<TgUser>("getMe");
   }
