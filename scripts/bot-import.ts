@@ -3,7 +3,7 @@
  * through the bot pipeline, without sending anything to the chat.
  *
  *   npx tsx scripts/bot-import.ts --dir ~/Downloads/ChatExport_2026-09-05 [--since 2026-09-03] [--until <ISO>]
- *                                 [--map user123=<userId> ...] [--create-accounts] [--apply]
+ *                                 [--map user123=<userId> ...] [--create-accounts] [--skip <msgId,msgId>] [--apply]
  *
  * Dry run by default: classifies every message (results cached in <dir>/import-cache.json so
  * --apply does not call the LLM again) and prints what would be filed next to what the site
@@ -29,10 +29,10 @@ import { exportChatId, exportMediaKind, exportText, exportUnixTime, groupExportM
 import { OpenAiCompatLlm, RateLimiter } from "@/lib/bot/llm";
 import { toJson, type StoredExtraction } from "@/lib/bot/ingest";
 
-type Args = { dir: string; since: string; until: string | null; apply: boolean; create: boolean; map: Record<string, string> };
+type Args = { dir: string; since: string; until: string | null; apply: boolean; create: boolean; map: Record<string, string>; skip: Set<number> };
 
 function parseArgs(argv: string[]): Args {
-  const a: Args = { dir: "", since: "", until: null, apply: false, create: false, map: {} };
+  const a: Args = { dir: "", since: "", until: null, apply: false, create: false, map: {}, skip: new Set() };
   for (let i = 0; i < argv.length; i++) {
     const v = argv[i];
     if (v === "--dir") a.dir = argv[++i];
@@ -40,6 +40,9 @@ function parseArgs(argv: string[]): Args {
     else if (v === "--until") a.until = argv[++i];
     else if (v === "--apply") a.apply = true;
     else if (v === "--create-accounts") a.create = true;
+    else if (v === "--skip") {
+      for (const id of (argv[++i] ?? "").split(",")) if (id.trim()) a.skip.add(Number(id));
+    }
     else if (v === "--map") {
       const m = /^user(\d+)=(.+)$/.exec(argv[++i] ?? "");
       if (!m) throw new Error("--map expects user<telegram id>=<site user id>");
@@ -87,7 +90,7 @@ async function main() {
 
   for (const group of groups) {
     const primary = group.find((m) => exportText(m)) ?? group[0];
-    if (group.some((m) => seen.has(m.id))) continue;
+    if (group.some((m) => seen.has(m.id) || args.skip.has(m.id))) continue;
     if (group.some((m) => m.forwarded_from)) continue;
     const sender = matchSender(primary, users, args.map);
     const tgId = senderId(primary)!;
@@ -154,6 +157,7 @@ async function main() {
     if (!user && status !== TelegramLinkStatus.SAVED) { if (!args.apply) unknown.set(tgId, `${primary.from ?? "?"} (не отчёт)`); continue; }
 
     rows.push([
+      String(primary.id).padStart(5),
       `${messageDate} ${timeInTz(unix, cfg.timezone)}`.padEnd(17),
       `${sender?.how === "name" ? "≈" : sender ? "" : "+"}${user?.name ?? primary.from ?? "?"}`.slice(0, 22).padEnd(23),
       (extraction.is_report ? `${extraction.confidence.toFixed(2)}` : "нет").padEnd(5),
@@ -204,7 +208,7 @@ async function main() {
     await prisma.telegramLink.update({ where: { id: link.id }, data: { extraction: toJson(next) } });
   }
 
-  console.log(["дата и время".padEnd(17), "участник".padEnd(23), "conf".padEnd(5), "тип/шаги".padEnd(14), "дата отчёта".padEnd(11), "бинго".padEnd(14), "действие".padEnd(22), "на сайте"].join(" "));
+  console.log(["id".padStart(5), "дата и время".padEnd(17), "участник".padEnd(23), "conf".padEnd(5), "тип/шаги".padEnd(14), "дата отчёта".padEnd(11), "бинго".padEnd(14), "действие".padEnd(22), "на сайте"].join(" "));
   console.log(rows.join("\n"));
   console.log(`\nзаписать: ${filed}${created ? ` (из них с новым участником: ${created})` : ""}, слить с существующим днём: ${merged}, неясно (вручную): ${asked}, не отчёт/пропуск: ${skipped}`);
   if (unknown.size) {
