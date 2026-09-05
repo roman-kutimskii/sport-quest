@@ -15,7 +15,7 @@ activities, and the system computes Pumpkins (🎃), streaks, bingo progress, an
 
 **Out of scope (v1)**
 - Integration with Strava / Apple Health / Google Fit (possible v2).
-- Telegram bot ingestion of chat posts (possible v2; the data model should allow it).
+- Telegram bot ingestion of chat posts — specified separately in [SPEC-TELEGRAM-BOT.md](SPEC-TELEGRAM-BOT.md).
 - Photo-contest voting for «Амбассадор Осени» (admin picks manually in v1).
 
 ## 2. Roles
