@@ -10,12 +10,12 @@
  */
 import "dotenv/config";
 import { prisma, ReportSource, TelegramLinkStatus, type User } from "@/lib/db";
-import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
+import { activityLabel, BINGO_TASKS } from "@/lib/bingo";
 import { getActiveQuest } from "@/lib/quest";
 import { createReport } from "@/lib/reports/create";
 import { decide } from "@/lib/bot/extraction";
 import { linkSender } from "@/lib/bot/identity";
-import { parseStoredExtraction, parseStoredMessage, toJson, type StoredExtraction } from "@/lib/bot/ingest";
+import { parseStoredExtraction, parseStoredMessage, pickActivities, toJson, type StoredExtraction } from "@/lib/bot/ingest";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -37,16 +37,16 @@ async function main() {
     const m = parseStoredMessage(link.update);
     if (!stored?.resolvedDate) { console.log(`  ${link.id}: no stored extraction/date, skipped`); skipped++; continue; }
     // Already handled (live bot or importer) as a merge into an existing day: nothing to file.
-    if (stored.dayAlreadyActive !== undefined || stored.savedActivityType !== undefined) continue;
+    if (stored.dayAlreadyActive !== undefined || stored.savedActivityType !== undefined || stored.savedActivityTypes !== undefined) continue;
 
     let user: User | null = link.userId ? await prisma.user.findUnique({ where: { id: link.userId } }) : null;
     const decision = decide(stored, { hasMedia: stored.hasMedia });
     const bingoKey = decision.bingo === "save" ? stored.bingo_key : null;
-    const activityType = stored.activity_type ?? (stored.steps || bingoKey ? null : "other");
-    const act = ACTIVITY_TYPES.find((t) => t.key === activityType);
+    const activityTypes = pickActivities(stored, bingoKey !== null);
+    const act = activityTypes.length ? activityLabel(activityTypes) : undefined;
     const task = BINGO_TASKS.find((t) => t.key === stored.bingo_key);
     const who = user?.name ?? `${link.fromName ?? link.fromUserId}${create ? " (+новый участник)" : " (без аккаунта — пропуск)"}`;
-    console.log(`  ${link.id}  ${stored.resolvedDate}  ${who.padEnd(28)} ${(act ? `${act.emoji} ${act.key}` : "").padEnd(10)} ${stored.steps ?? ""} ${task ? `${task.emoji} ${decision.bingo === "save" ? "явно" : "догадка"}` : ""}  «${(stored.text ?? "").replace(/\s+/g, " ").slice(0, 50)}»`);
+    console.log(`  ${link.id}  ${stored.resolvedDate}  ${who.padEnd(28)} ${(act ? `${act.emoji} ${activityTypes.join("+")}` : "").padEnd(10)} ${stored.steps ?? ""} ${task ? `${task.emoji} ${decision.bingo === "save" ? "явно" : "догадка"}` : ""}  «${(stored.text ?? "").replace(/\s+/g, " ").slice(0, 50)}»`);
 
     if (!user && (!create || !m?.from)) { skipped++; continue; }
     if (!apply) { filed++; continue; }
@@ -57,12 +57,12 @@ async function main() {
       console.log(`    created participant ${user.name}`);
     }
     const base = { userId: user.id, quest, date: stored.resolvedDate, steps: stored.steps, comment: stored.text, proofUrls: stored.proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true };
-    let res = await createReport({ ...base, activityType, bingoKey });
-    if (!res.ok && bingoKey) res = await createReport({ ...base, activityType: stored.activity_type ?? (stored.steps ? null : "other"), bingoKey: null });
+    let res = await createReport({ ...base, activityTypes, bingoKey });
+    if (!res.ok && bingoKey) res = await createReport({ ...base, activityTypes: pickActivities(stored, false), bingoKey: null });
     if (!res.ok) { console.log(`    FAILED: ${res.error}`); await prisma.telegramLink.update({ where: { id: link.id }, data: { status: TelegramLinkStatus.FAILED, error: res.error } }); skipped++; continue; }
     const dayAlreadyActive = res.existingActivity !== undefined;
     if (dayAlreadyActive) merged++; else filed++;
-    const next: StoredExtraction = { ...stored, savedActivityType: activityType, dayAlreadyActive, bingoSaved: res.created.some((r) => r.kind === "BINGO") };
+    const next: StoredExtraction = { ...stored, savedActivityTypes: activityTypes, dayAlreadyActive, bingoSaved: res.created.some((r) => r.kind === "BINGO") };
     await prisma.telegramLink.update({ where: { id: link.id }, data: { extraction: toJson(next), error: null } });
   }
   console.log(`\n${apply ? "записано" : "будет записано"}: ${filed}${apply ? `, слито с существующим днём: ${merged}` : ""}, пропущено: ${skipped}${apply ? "" : "\nDry run — ничего не записано. Повтори с --apply."}`);

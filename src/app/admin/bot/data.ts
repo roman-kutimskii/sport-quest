@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/db";
-import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
+import { activityLabel, BINGO_TASKS } from "@/lib/bingo";
 import type { Prisma, TelegramLinkStatus } from "@/generated/prisma/client";
 
 export const STATUS: Record<string, { label: string; cls: string }> = {
@@ -30,7 +30,7 @@ export const ALBUM_SIBLING = "album sibling";
 const NOT_ALBUM_SIBLING: Prisma.TelegramLinkWhereInput[] = [{ error: null }, { error: { not: ALBUM_SIBLING } }];
 
 type Extraction = {
-  is_report?: boolean; confidence?: number; date?: string | null; activity_type?: string | null;
+  is_report?: boolean; confidence?: number; date?: string | null; activity_type?: string | null; activity_types?: string[];
   steps?: number | null; bingo_key?: string | null; bingo_confidence?: number; summary_ru?: string;
 };
 
@@ -39,8 +39,8 @@ export function describeExtraction(raw: unknown): string {
   if (!e) return "";
   if (!e.is_report) return e.summary_ru && e.summary_ru !== "не отчёт" ? e.summary_ru : "";
   const parts: string[] = [];
-  const type = ACTIVITY_TYPES.find((t) => t.key === e.activity_type);
-  if (type) parts.push(`${type.emoji} ${type.title}`);
+  const keys = e.activity_types ?? (e.activity_type ? [e.activity_type] : []);
+  if (keys.length) { const type = activityLabel(keys); parts.push(`${type.emoji} ${type.title}`); }
   if (e.steps) parts.push(`${e.steps.toLocaleString("ru-RU")} шагов`);
   const bingo = BINGO_TASKS.find((t) => t.key === e.bingo_key);
   if (bingo) parts.push(`🎯 ${bingo.title}${e.bingo_confidence != null ? ` (${Math.round(e.bingo_confidence * 100)}%)` : ""}`);

@@ -6,7 +6,7 @@ import { prisma, ReportSource, TelegramLinkStatus, type TelegramLink } from "@/l
 import { createReport } from "@/lib/reports/create";
 import { getActiveQuest } from "@/lib/quest";
 import { decide } from "./extraction";
-import { errorMessage, parseStoredExtraction, renderSavedText, saveFromExtraction, toJson, userScore, type Deps } from "./ingest";
+import { errorMessage, parseStoredExtraction, renderSavedText, savedActivities, saveFromExtraction, toJson, userScore, type Deps } from "./ingest";
 import { buildSavedKeyboard, parseCallback } from "./keyboards";
 import type { TgCallbackQuery } from "./telegram-api";
 import { renderReplyUndone } from "./text";
@@ -79,7 +79,7 @@ async function onBingo(deps: Deps, link: TelegramLink): Promise<void> {
   const { total, streak } = await userScore(quest, userId);
   const next = { ...stored, bingoSaved: res.ok };
   let text = renderSavedText(stored, {
-    activityType: stored.savedActivityType ?? null, total, streak, dayAlreadyActive: stored.dayAlreadyActive ?? false,
+    activityTypes: savedActivities(stored), total, streak, dayAlreadyActive: stored.dayAlreadyActive ?? false,
     bingoSaved: res.ok ? stored.bingo_key : null, bingoOffer: null, bingoNeedsPhoto: decision.bingoNeedsPhotoNote,
   });
   if (!res.ok) text += `\n⚠️ Бинго не засчитано: ${res.error}`;

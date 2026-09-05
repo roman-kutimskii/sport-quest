@@ -5,7 +5,7 @@
  */
 import { z } from "zod";
 import { prisma, Prisma, ReportKind, ReportSource, ReportStatus, TelegramLinkStatus, type TelegramLink } from "@/lib/db";
-import { ACTIVITY_TYPES, BINGO_KEYS, BINGO_TASKS } from "@/lib/bingo";
+import { activityLabel, BINGO_KEYS, BINGO_TASKS } from "@/lib/bingo";
 import { createReport } from "@/lib/reports/create";
 import { getActiveQuest, getUserBreakdown, questDates, type Quest } from "@/lib/quest";
 import { LIMITS, type BotConfig } from "./config";
@@ -34,7 +34,8 @@ export const StoredExtractionSchema = ExtractionSchema.extend({
   hasMedia: z.boolean().default(false),
   videoTooLarge: z.boolean().default(false),
   text: z.string().nullable().default(null),
-  /** Set by saveFromExtraction. */
+  /** Set by saveFromExtraction. `savedActivityType` is the pre-array form kept for old rows. */
+  savedActivityTypes: z.array(z.string()).optional(),
   savedActivityType: z.string().nullable().optional(),
   dayAlreadyActive: z.boolean().optional(),
   bingoSaved: z.boolean().optional(),
@@ -42,6 +43,11 @@ export const StoredExtractionSchema = ExtractionSchema.extend({
 export type StoredExtraction = z.infer<typeof StoredExtractionSchema>;
 
 export function parseStoredExtraction(v: unknown): StoredExtraction | null {
+  // Rows written before the array form carry a single `activity_type`.
+  if (v && typeof v === "object" && !("activity_types" in v)) {
+    const { activity_type, ...rest } = v as { activity_type?: string | null };
+    v = { ...rest, activity_types: activity_type ? [activity_type] : [] };
+  }
   const r = StoredExtractionSchema.safeParse(v);
   return r.success ? r.data : null;
 }
@@ -192,16 +198,21 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
 }
 
 /** A confident report with neither an activity nor steps nor bingo is still «something» — file it as «Другое». */
-function pickActivity(e: Extraction, withBingo: boolean): string | null {
-  if (e.activity_type) return e.activity_type;
-  return e.steps || withBingo ? null : "other";
+export function pickActivities(e: Extraction, withBingo: boolean): string[] {
+  if (e.activity_types.length) return e.activity_types;
+  return e.steps || withBingo ? [] : ["other"];
+}
+
+/** What a saved link recorded as its activity list (tolerates rows written before the array form). */
+export function savedActivities(e: StoredExtraction): string[] {
+  return e.savedActivityTypes ?? (e.savedActivityType ? [e.savedActivityType] : []);
 }
 
 export function renderSavedText(
   e: StoredExtraction,
-  p: { activityType: string | null; total: number; streak: number; dayAlreadyActive: boolean; bingoSaved: string | null; bingoOffer: string | null; bingoNeedsPhoto: boolean },
+  p: { activityTypes: string[]; total: number; streak: number; dayAlreadyActive: boolean; bingoSaved: string | null; bingoOffer: string | null; bingoNeedsPhoto: boolean },
 ): string {
-  const act = p.activityType ? ACTIVITY_TYPES.find((t) => t.key === p.activityType) : undefined;
+  const act = p.activityTypes.length ? activityLabel(p.activityTypes) : undefined;
   const task = (key: string | null) => (key ? BINGO_TASKS.find((t) => t.key === key) : undefined);
   const saved = task(p.bingoSaved);
   const offer = task(p.bingoOffer);
@@ -248,13 +259,13 @@ export async function saveFromExtraction(
     source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true,
   };
   let bingoKey = decision.bingo === "save" ? stored.bingo_key : null;
-  let activityType = pickActivity(stored, bingoKey !== null);
-  let res = await createReport({ ...base, activityType, bingoKey });
+  let activityTypes = pickActivities(stored, bingoKey !== null);
+  let res = await createReport({ ...base, activityTypes, bingoKey });
   if (!res.ok && bingoKey) {
     // Bingo already closed / another bingo that day: keep the activity, drop the bingo silently.
     bingoKey = null;
-    activityType = pickActivity(stored, false);
-    res = await createReport({ ...base, activityType, bingoKey: null });
+    activityTypes = pickActivities(stored, false);
+    res = await createReport({ ...base, activityTypes, bingoKey: null });
   }
   if (!res.ok) throw new Error(`createReport: ${res.error}`);
 
@@ -262,7 +273,7 @@ export async function saveFromExtraction(
   const bingoOffer = !bingoKey && decision.bingo === "offer" ? stored.bingo_key : null;
   const { total, streak } = await userScore(quest, userId);
   const text = renderSavedText(stored, {
-    activityType, total, streak, dayAlreadyActive, bingoSaved: bingoKey, bingoOffer, bingoNeedsPhoto: decision.bingoNeedsPhotoNote,
+    activityTypes, total, streak, dayAlreadyActive, bingoSaved: bingoKey, bingoOffer, bingoNeedsPhoto: decision.bingoNeedsPhotoNote,
   });
   const replyMarkup = buildSavedKeyboard({ linkId: link.id, userId, publicUrl: deps.cfg.publicUrl, offerBingo: bingoOffer !== null });
 
@@ -275,7 +286,7 @@ export async function saveFromExtraction(
     replyMessageId = sent.message_id;
   }
 
-  const next: StoredExtraction = { ...stored, savedActivityType: activityType, dayAlreadyActive, bingoSaved: bingoKey !== null };
+  const next: StoredExtraction = { ...stored, savedActivityTypes: activityTypes, dayAlreadyActive, bingoSaved: bingoKey !== null };
   await prisma.telegramLink.update({
     where: { id: link.id },
     data: { status: TelegramLinkStatus.SAVED, replyMessageId, extraction: toJson(next), processedAt: new Date(), error: null },

@@ -200,7 +200,7 @@ kind, forwarded flag, and up to **3 photos** (Telegram's ≤800 px size, ~100 KB
   "is_report": true,
   "confidence": 0.92,
   "date": "2026-09-04",            // null → message date
-  "activity_type": "run",           // enum from ACTIVITY_TYPES | null
+  "activity_types": ["run"],        // keys from ACTIVITY_TYPES; several when one message reports several activities
   "steps": 12000,                   // int | null
   "bingo_key": "leaves",            // enum of the author's open tasks | null
   "bingo_explicit": false,          // author named the task in text

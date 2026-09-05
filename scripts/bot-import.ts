@@ -18,7 +18,7 @@ import "dotenv/config";
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma, ReportKind, ReportSource, ReportStatus, TelegramLinkStatus, type User } from "@/lib/db";
-import { BINGO_KEYS, BINGO_TASKS, ACTIVITY_TYPES } from "@/lib/bingo";
+import { activityLabel, BINGO_KEYS, BINGO_TASKS } from "@/lib/bingo";
 import { getActiveQuest, questDates } from "@/lib/quest";
 import { createReport } from "@/lib/reports/create";
 import { saveProofBytes } from "@/lib/upload";
@@ -27,7 +27,7 @@ import { dateInTz, timeInTz } from "@/lib/bot/dates";
 import { ExtractionSchema, decide, extractReport, resolveDate, type Extraction } from "@/lib/bot/extraction";
 import { exportChatId, exportMediaKind, exportText, exportUnixTime, groupExportMessages, localToUnix, matchSender, senderId, type ExportFile } from "@/lib/bot/import";
 import { OpenAiCompatLlm, RateLimiter } from "@/lib/bot/llm";
-import { toJson, type StoredExtraction } from "@/lib/bot/ingest";
+import { pickActivities, toJson, type StoredExtraction } from "@/lib/bot/ingest";
 
 type Args = { dir: string; since: string; until: string | null; apply: boolean; create: boolean; map: Record<string, string>; skip: Set<number> };
 
@@ -141,7 +141,7 @@ async function main() {
       ? await prisma.report.findMany({ where: { userId: user.id, questId: quest.id, date: new Date(`${date}T00:00:00.000Z`), status: { not: ReportStatus.REJECTED } } })
       : [];
     const existingLabel = existing.map((r) => (r.kind === "BINGO" ? `бинго ${r.bingoKey}` : r.kind === "STEPS" ? `шаги ${r.steps}` : `${r.activityTypes.join("+")}${r.steps ? ` ${r.steps}` : ""}`) + (r.source === "WEB" ? " (сайт)" : " (бот)")).join(", ");
-    const act = ACTIVITY_TYPES.find((t) => t.key === extraction.activity_type);
+    const act = extraction.activity_types.length ? activityLabel(extraction.activity_types) : undefined;
     const bingo = BINGO_TASKS.find((t) => t.key === extraction.bingo_key);
     const bingoLabel = bingo ? `${bingo.emoji} ${decision.bingo === "save" ? "явно" : decision.bingo === "offer" ? "догадка" : "без фото"}` : "";
 
@@ -161,7 +161,7 @@ async function main() {
       `${messageDate} ${timeInTz(unix, cfg.timezone)}`.padEnd(17),
       `${sender?.how === "name" ? "≈" : sender ? "" : "+"}${user?.name ?? primary.from ?? "?"}`.slice(0, 22).padEnd(23),
       (extraction.is_report ? `${extraction.confidence.toFixed(2)}` : "нет").padEnd(5),
-      `${act ? `${act.emoji} ${act.key}` : ""}${extraction.steps ? ` ${extraction.steps}` : ""}`.padEnd(14),
+      `${act ? `${act.emoji} ${extraction.activity_types.join("+")}` : ""}${extraction.steps ? ` ${extraction.steps}` : ""}`.padEnd(14),
       (date ?? "").padEnd(11),
       bingoLabel.padEnd(14),
       action.padEnd(22),
@@ -196,15 +196,15 @@ async function main() {
     if (status !== TelegramLinkStatus.SAVED || !date) continue;
 
     const bingoKey = decision.bingo === "save" ? extraction.bingo_key : null;
-    const activityType = extraction.activity_type ?? (extraction.steps || bingoKey ? null : "other");
-    let res = await createReport({ userId: uid, quest, date, activityType, steps: extraction.steps, bingoKey, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
-    if (!res.ok && bingoKey) res = await createReport({ userId: uid, quest, date, activityType: extraction.activity_type ?? (extraction.steps ? null : "other"), steps: extraction.steps, bingoKey: null, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
+    const activityTypes = pickActivities(extraction, bingoKey !== null);
+    let res = await createReport({ userId: uid, quest, date, activityTypes, steps: extraction.steps, bingoKey, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
+    if (!res.ok && bingoKey) res = await createReport({ userId: uid, quest, date, activityTypes: pickActivities(extraction, false), steps: extraction.steps, bingoKey: null, comment: text, proofUrls, source: ReportSource.TELEGRAM, linkId: link.id, mergeSameDayActivity: true });
     if (!res.ok) {
       await prisma.telegramLink.update({ where: { id: link.id }, data: { status: TelegramLinkStatus.FAILED, error: res.error } });
       console.warn(`  message ${primary.id}: ${res.error}`);
       continue;
     }
-    const next: StoredExtraction = { ...stored, savedActivityType: activityType, dayAlreadyActive: res.existingActivity !== undefined, bingoSaved: bingoKey !== null && res.created.some((r) => r.kind === "BINGO") };
+    const next: StoredExtraction = { ...stored, savedActivityTypes: activityTypes, dayAlreadyActive: res.existingActivity !== undefined, bingoSaved: bingoKey !== null && res.created.some((r) => r.kind === "BINGO") };
     await prisma.telegramLink.update({ where: { id: link.id }, data: { extraction: toJson(next) } });
   }
 

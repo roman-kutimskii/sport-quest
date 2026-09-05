@@ -27,8 +27,8 @@ export type CreateReportInput = {
   linkId?: string | null;
   /**
    * Bot behaviour: when the author already has a non-rejected ACTIVITY report on that date, do not
-   * create a second one. Steps are written onto the existing report if it has none; proofs are
-   * appended only when that report was also bot-created.
+   * create a second one. Steps are written onto the existing report if it has none, new activity
+   * types are appended to its list; proofs are appended only when that report was also bot-created.
    */
   mergeSameDayActivity?: boolean;
 };
@@ -99,7 +99,10 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   const created = await prisma.$transaction(async (tx) => {
     const out: Report[] = [];
     if (existingActivity) {
-      const patch: { steps?: number; proofUrls?: string[] } = {};
+      const patch: { steps?: number; proofUrls?: string[]; activityTypes?: string[] } = {};
+      if (existingActivity.kind === ReportKind.ACTIVITY && activityTypes.some((k) => !existingActivity!.activityTypes.includes(k))) {
+        patch.activityTypes = [...existingActivity.activityTypes, ...activityTypes.filter((k) => !existingActivity!.activityTypes.includes(k))];
+      }
       if (steps && (existingActivity.steps ?? 0) < steps && (!existingActivity.steps || existingActivity.kind === ReportKind.STEPS)) patch.steps = steps;
       if (existingActivity.source === ReportSource.TELEGRAM && proofUrls.length) {
         patch.proofUrls = [...existingActivity.proofUrls, ...proofUrls.filter((u) => !existingActivity!.proofUrls.includes(u))];

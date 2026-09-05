@@ -25,7 +25,7 @@ function diffs(c: EvalCase, e: Extraction): string[] {
     if (band !== x.band) out.push(`band ${band} ≠ ${x.band}`);
   }
   if (x.is_report) {
-    if (x.activity_type !== undefined && e.activity_type !== x.activity_type) out.push(`activity ${e.activity_type} ≠ ${x.activity_type}`);
+    if (x.activity_types !== undefined && e.activity_types.join("+") !== x.activity_types.join("+")) out.push(`activity ${e.activity_types.join("+") || "-"} ≠ ${x.activity_types.join("+") || "-"}`);
     if (x.steps !== undefined && e.steps !== x.steps) out.push(`steps ${e.steps} ≠ ${x.steps}`);
     if (x.date !== undefined && (e.date ?? MESSAGE_DATE) !== x.date) out.push(`date ${e.date ?? "null→" + MESSAGE_DATE} ≠ ${x.date}`);
     if (x.bingo_key !== undefined && e.bingo_key !== x.bingo_key) out.push(`bingo ${e.bingo_key} ≠ ${x.bingo_key}`);
@@ -109,7 +109,7 @@ async function main() {
     const mark = r.diffs.length ? "✗" : "✓";
     const text = pad(r.c.text || `(${(r.c.mediaKinds ?? []).join(",") || "empty"})`, 44);
     const got = r.e
-      ? `${r.e.is_report ? "R" : "-"} ${r.e.confidence.toFixed(2)} ${r.e.activity_type ?? "-"} ${r.e.date ?? "-"} ${r.e.steps ?? "-"} ${r.e.bingo_key ?? "-"}${r.e.bingo_explicit ? "!" : ""}`
+      ? `${r.e.is_report ? "R" : "-"} ${r.e.confidence.toFixed(2)} ${r.e.activity_types.join("+") || "-"} ${r.e.date ?? "-"} ${r.e.steps ?? "-"} ${r.e.bingo_key ?? "-"}${r.e.bingo_explicit ? "!" : ""}`
       : `ERROR ${r.error}`;
     console.log(`${mark} ${text} ${pad(got, 40)} ${r.diffs.join("; ")}`);
   }
@@ -118,7 +118,7 @@ async function main() {
   console.log(`\n${passed}/${results.length} cases pass`);
   console.log(`is_report, save band (≥ ${THRESHOLDS.save}):     ${prf(results, (e) => e.is_report && e.confidence >= THRESHOLDS.save)}`);
   console.log(`is_report, save+ask band (≥ ${THRESHOLDS.ask}): ${prf(results, (e) => e.is_report && e.confidence >= THRESHOLDS.ask)}`);
-  console.log(accuracy(results, "activity_type", (r) => (r.c.expect.activity_type === undefined ? null : [r.c.expect.activity_type, r.e!.activity_type])));
+  console.log(accuracy(results, "activity_types", (r) => (r.c.expect.activity_types === undefined ? null : [r.c.expect.activity_types.join("+"), r.e!.activity_types.join("+")])));
   console.log(accuracy(results, "date", (r) => (r.c.expect.date === undefined ? null : [r.c.expect.date, r.e!.date ?? MESSAGE_DATE])));
   console.log(accuracy(results, "steps", (r) => (r.c.expect.steps === undefined ? null : [r.c.expect.steps, r.e!.steps])));
   console.log(accuracy(results, "bingo_key", (r) => (r.c.expect.bingo_key === undefined ? null : [r.c.expect.bingo_key, r.e!.bingo_key])));

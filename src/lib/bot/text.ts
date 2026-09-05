@@ -33,7 +33,7 @@ export function fmtDateShort(d: string): string {
 const days = (n: number) => pluralRu(n, "день", "дня", "дней");
 const streakPart = (n: number) => (n > 0 ? `стрик ${n} 🔥` : null);
 const join = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ");
-const lower = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
+const lower = (s: string) => s.split(" + ").map((x) => (x ? x[0].toLowerCase() + x.slice(1) : x)).join(" + ");
 
 export function renderReplySaved(p: {
   activityTitle?: string | null;

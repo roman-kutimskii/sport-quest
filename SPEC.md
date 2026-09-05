@@ -121,7 +121,7 @@ Report                       -- every submitted claim, immutable except status
   id, user_id, quest_id
   kind: 'activity' | 'bingo' | 'steps'
   date                       -- the day being claimed
-  activity_type?             -- for kind = activity
+  activity_types[]           -- for kind = activity; several when the day had more than one
   bingo_key?                 -- for kind = bingo
   steps?                     -- for kind = steps (or attached to activity)
   duration_min?, comment?

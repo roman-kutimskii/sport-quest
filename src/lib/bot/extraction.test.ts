@@ -4,22 +4,29 @@ import type { LlmClient } from "./llm";
 import { buildSystemPrompt, coerceExtraction, decide, extractReport, parseJsonLoose, resolveDate, type Extraction, type PromptContext } from "./extraction";
 
 const base: Extraction = {
-  is_report: true, confidence: 0.9, date: null, activity_type: "run", steps: null,
+  is_report: true, confidence: 0.9, date: null, activity_types: ["run"], steps: null,
   bingo_key: null, bingo_explicit: false, bingo_confidence: 0, summary_ru: "бег",
 };
 
 describe("coerceExtraction", () => {
+  it("accepts the legacy single activity_type and a comma-joined string", () => {
+    const legacy: Partial<typeof base> = { ...base };
+    delete legacy.activity_types;
+    expect(coerceExtraction({ ...legacy, activity_type: "run" }, []).activity_types).toEqual(["run"]);
+    expect(coerceExtraction({ ...legacy, activity_type: null }, []).activity_types).toEqual([]);
+    expect(coerceExtraction({ ...base, activity_types: "run, yoga" }, []).activity_types).toEqual(["run", "yoga"]);
+  });
   it("nulls unknown activity types and bingo keys outside the open set", () => {
-    const e = coerceExtraction({ ...base, activity_type: "skiing", bingo_key: "stairs", bingo_explicit: true, bingo_confidence: 0.9 }, ["leaves"]);
-    expect(e.activity_type).toBeNull();
+    const e = coerceExtraction({ ...base, activity_types: ["skiing"], bingo_key: "stairs", bingo_explicit: true, bingo_confidence: 0.9 }, ["leaves"]);
+    expect(e.activity_types).toEqual([]);
     expect(e.bingo_key).toBeNull();
     expect(e.bingo_explicit).toBe(false);
     expect(e.bingo_confidence).toBe(0);
   });
 
   it("keeps valid enums (case-insensitive) and numeric-string steps", () => {
-    const e = coerceExtraction({ ...base, activity_type: "Gym", steps: "12 000", bingo_key: "stairs", bingo_explicit: true, bingo_confidence: 0.8 }, ["stairs"]);
-    expect(e.activity_type).toBe("gym");
+    const e = coerceExtraction({ ...base, activity_types: ["Gym", "skiing", "gym", "Yoga"], steps: "12 000", bingo_key: "stairs", bingo_explicit: true, bingo_confidence: 0.8 }, ["stairs"]);
+    expect(e.activity_types).toEqual(["gym", "yoga"]);
     expect(e.steps).toBe(12000);
     expect(e.bingo_key).toBe("stairs");
     expect(e.bingo_explicit).toBe(true);
@@ -49,7 +56,7 @@ describe("decide", () => {
   });
 
   it("steps-only message without activity is still a report", () => {
-    expect(decide({ ...base, activity_type: null, steps: 12000 }, { hasMedia: false }).action).toBe("save");
+    expect(decide({ ...base, activity_types: [], steps: 12000 }, { hasMedia: false }).action).toBe("save");
   });
 
   it("bingo save / offer / none", () => {
@@ -104,11 +111,11 @@ describe("extractReport", () => {
     const llm: LlmClient = {
       async complete(input) {
         calls.push({ user: input.user });
-        return { text: calls.length === 1 ? '{"is_report": "maybe"}' : '```json\n{"is_report":true,"confidence":0.9,"date":null,"activity_type":"run","steps":null,"bingo_key":null,"bingo_explicit":false,"bingo_confidence":0,"summary_ru":"бег 5 км"}\n```' };
+        return { text: calls.length === 1 ? '{"is_report": "maybe"}' : '```json\n{"is_report":true,"confidence":0.9,"date":null,"activity_types":["run"],"steps":null,"bingo_key":null,"bingo_explicit":false,"bingo_confidence":0,"summary_ru":"бег 5 км"}\n```' };
       },
     };
     const { extraction } = await extractReport(llm, ctx, []);
-    expect(extraction.activity_type).toBe("run");
+    expect(extraction.activity_types).toEqual(["run"]);
     expect(calls).toHaveLength(2);
     const last = calls[1].user[calls[1].user.length - 1] as { type: string; text: string };
     expect(last.type).toBe("text");
