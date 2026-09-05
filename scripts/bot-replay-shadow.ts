@@ -36,6 +36,8 @@ async function main() {
     const stored = parseStoredExtraction(link.extraction);
     const m = parseStoredMessage(link.update);
     if (!stored?.resolvedDate) { console.log(`  ${link.id}: no stored extraction/date, skipped`); skipped++; continue; }
+    // Already handled (live bot or importer) as a merge into an existing day: nothing to file.
+    if (stored.dayAlreadyActive !== undefined || stored.savedActivityType !== undefined) continue;
 
     let user: User | null = link.userId ? await prisma.user.findUnique({ where: { id: link.userId } }) : null;
     const decision = decide(stored, { hasMedia: stored.hasMedia });
