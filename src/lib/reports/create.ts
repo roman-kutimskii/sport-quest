@@ -1,5 +1,7 @@
 import { prisma, ReportKind, ReportSource, ReportStatus, type Report } from "@/lib/db";
 import { ACTIVITY_TYPES, isBingoKey } from "@/lib/bingo";
+
+const ACTIVITY_KEYS = ACTIVITY_TYPES.map((t) => t.key);
 import { questDates, type Quest } from "@/lib/quest";
 import { toDateStr } from "@/lib/scoring/dates";
 
@@ -12,7 +14,10 @@ export type CreateReportInput = {
   quest: Quest;
   /** YYYY-MM-DD in the quest timezone. */
   date: string;
+  /** Single activity (bot path); ignored when `activityTypes` is non-empty. */
   activityType?: string | null;
+  /** Several activities recorded as one report (website form). */
+  activityTypes?: string[];
   steps?: number | null;
   bingoKey?: string | null;
   comment?: string | null;
@@ -44,7 +49,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   const { quest, userId } = input;
   const { start, end, today } = questDates(quest);
   const date = input.date;
-  const activityType = input.activityType || null;
+  const activityTypes = [...new Set(input.activityTypes?.length ? input.activityTypes : input.activityType ? [input.activityType] : [])];
   const bingoKey = input.bingoKey || null;
   const steps = input.steps ?? null;
   const comment = (input.comment ?? "").trim().slice(0, 500) || null;
@@ -58,10 +63,10 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   if (steps !== null && (!Number.isInteger(steps) || steps < 0 || steps > 200000)) return { ok: false, error: "Шаги: введи число" };
 
   // Steps alone never make a day active: an activity type (e.g. «Прогулка / 10 000+ шагов») must be chosen.
-  const hasActivity = Boolean(activityType);
-  const stepsOnly = !bingoKey && !activityType;
+  const hasActivity = activityTypes.length > 0;
+  const stepsOnly = !bingoKey && !hasActivity;
   if (stepsOnly && !steps) return { ok: false, error: "Выбери тип активности" };
-  if (activityType && !ACTIVITY_TYPES.some((t) => t.key === activityType)) return { ok: false, error: "Неизвестный тип активности" };
+  if (activityTypes.some((k) => !ACTIVITY_KEYS.includes(k))) return { ok: false, error: "Неизвестный тип активности" };
   if (bingoKey && !isBingoKey(bingoKey)) return { ok: false, error: "Неизвестное задание бинго" };
 
   const status = quest.autoApprove ? ReportStatus.APPROVED : ReportStatus.PENDING;
@@ -102,7 +107,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
       if (Object.keys(patch).length) existingActivity = await tx.report.update({ where: { id: existingActivity.id }, data: patch });
     } else if (hasActivity) {
       out.push(await tx.report.create({
-        data: { userId, questId: quest.id, kind: ReportKind.ACTIVITY, date: dateValue, activityType, steps, comment, proofUrls, status, source, linkId },
+        data: { userId, questId: quest.id, kind: ReportKind.ACTIVITY, date: dateValue, activityTypes, steps, comment, proofUrls, status, source, linkId },
       }));
     } else if (stepsOnly) {
       // Steps without an activity: counted in the steps total only.

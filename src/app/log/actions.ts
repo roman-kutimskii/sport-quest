@@ -15,7 +15,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
   const quest = await getActiveQuest();
 
   const date = String(formData.get("date") ?? "");
-  const activityType = String(formData.get("activityType") ?? "");
+  const activityTypes = formData.getAll("activityType").map(String).filter(Boolean);
   const stepsRaw = String(formData.get("steps") ?? "").replace(/\s/g, "");
   const comment = String(formData.get("comment") ?? "");
   const bingoKey = String(formData.get("bingoKey") ?? "");
@@ -31,7 +31,7 @@ export async function submitReport(_prev: LogState, formData: FormData): Promise
     return { error: (e as Error).message };
   }
 
-  const result = await createReport({ userId: user.id, quest, date, activityType, steps, bingoKey, comment, proofUrls, source: "WEB" });
+  const result = await createReport({ userId: user.id, quest, date, activityTypes, steps, bingoKey, comment, proofUrls, source: "WEB" });
   if (!result.ok) return { error: result.error };
 
   revalidatePath("/");

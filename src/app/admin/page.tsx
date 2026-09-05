@@ -1,7 +1,7 @@
 import { requireAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { ambassadorWinner, computeNominations, getActiveQuest, getAmbassadorTally, getLeaderboard } from "@/lib/quest";
-import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
+import { activityLabel, BINGO_TASKS } from "@/lib/bingo";
 import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Proofs } from "@/components/proof";
 import { NOMINATIONS } from "@/lib/nominations";
@@ -45,7 +45,7 @@ export default async function AdminPage() {
         {pending.length === 0 && <p className="p-5 text-sm text-fgm">Очередь пуста 🎉</p>}
         <ul className="divide-y divide-line">
           {pending.map((r) => {
-            const type = ACTIVITY_TYPES.find((t) => t.key === r.activityType);
+            const type = activityLabel(r.activityTypes);
             const bingo = BINGO_TASKS.find((t) => t.key === r.bingoKey);
             return (
               <li key={r.id} className="grid gap-3 px-5 py-4 text-sm sm:grid-cols-[1fr_auto]">
@@ -53,7 +53,7 @@ export default async function AdminPage() {
                   {r.proofUrls.length > 0 && <Proofs urls={r.proofUrls} className="h-24 w-24 shrink-0" />}
                   <div>
                     <div className="font-semibold">{r.user.avatarEmoji} {r.user.name} · {formatRuDate(toDateStr(r.date))}</div>
-                    <div>{r.kind === "BINGO" ? `🎯 ${bingo?.emoji} ${bingo?.title}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
+                    <div>{r.kind === "BINGO" ? `🎯 ${bingo?.emoji} ${bingo?.title}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type.emoji} ${type.title}`}
                       {r.steps ? ` · ${r.steps.toLocaleString("ru-RU")} шагов` : ""}</div>
                     {r.comment && <div className="text-fgm">{r.comment}</div>}
                   </div>

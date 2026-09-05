@@ -90,7 +90,7 @@ model Report {
   questId      String
   kind         ReportKind
   date         DateTime     @db.Date
-  activityType String?
+  activityTypes String[]     @default([])
   bingoKey     String?
   steps        Int?
   comment      String?

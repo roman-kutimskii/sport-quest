@@ -9,7 +9,7 @@
  */
 import "dotenv/config";
 import { z } from "zod";
-import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
+import { activityLabel, BINGO_TASKS } from "@/lib/bingo";
 import { OutboxStatus, Prisma, ReportStatus, TelegramLinkStatus, prisma, type Outbox } from "@/lib/db";
 import { getActiveQuest, questDates } from "@/lib/quest";
 import { addDays, toDateStr } from "@/lib/scoring/dates";
@@ -231,7 +231,7 @@ async function sendAnnouncement(deps: Deps, group: { rowIds: string[]; userId: s
   });
   if (!reports.length || !reports[0].user.isActive) return; // deleted / rejected / deactivated: nothing to announce
   const items: AnnouncementItem[] = reports.map((r) => {
-    const act = ACTIVITY_TYPES.find((t) => t.key === r.activityType);
+    const act = r.activityTypes.length ? activityLabel(r.activityTypes) : undefined;
     const task = BINGO_TASKS.find((t) => t.key === r.bingoKey);
     return { kind: r.kind, activityTitle: act?.title ?? null, activityEmoji: act?.emoji ?? null, bingoTitle: task?.title ?? null, bingoEmoji: task?.emoji ?? null, steps: r.steps };
   });

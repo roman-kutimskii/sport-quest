@@ -31,3 +31,10 @@ export const ACTIVITY_TYPES: { key: string; emoji: string; title: string }[] = [
   { key: "walk",     emoji: "🚶", title: "Прогулка / 10 000+ шагов" },
   { key: "other",    emoji: "✨", title: "Другое" },
 ];
+
+/** «🏃 Бег + 🧘 Йога / растяжка (15+ мин)» — label for a report's activity list; falls back to a generic one. */
+export function activityLabel(keys: string[]): { emoji: string; title: string } {
+  const found = keys.map((k) => ACTIVITY_TYPES.find((t) => t.key === k)).filter((t) => t !== undefined);
+  if (!found.length) return { emoji: "✨", title: "Активность" };
+  return { emoji: found.map((t) => t.emoji).join(""), title: found.map((t) => t.title).join(" + ") };
+}

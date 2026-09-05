@@ -12,7 +12,8 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
   const [date, setDate] = useState(today);
   const [bingoKey, setBingoKey] = useState("");
   const [showBingo, setShowBingo] = useState(false);
-  const [activityType, setActivityType] = useState("");
+  const [activityTypes, setActivityTypes] = useState<string[]>([]);
+  const toggleActivity = (key: string) => setActivityTypes((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
   const [picked, setPicked] = useState<{ name: string; preview: string | null }[]>([]);
 
   const dayHasBingo = bingoDates.includes(date);
@@ -32,7 +33,7 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
             id="steps" name="steps" inputMode="numeric" className="input" placeholder="10 000"
             onChange={(e) => {
               const n = Number.parseInt(e.target.value.replace(/\s/g, ""), 10);
-              if (n >= 10000 && !activityType) setActivityType("walk");
+              if (n >= 10000 && activityTypes.length === 0) setActivityTypes(["walk"]);
             }}
           />
         </div>
@@ -77,22 +78,23 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: 
       )}
 
       <fieldset className="space-y-3">
-        <legend className="label">Активность</legend>
+        <legend className="label">Активность <span className="font-normal text-fgm">— можно выбрать несколько</span></legend>
         {bingoKey && <p className="text-xs text-fgm">День с бинго уже активный (+1 🎃). Тип активности можно не выбирать — он нужен только для статистики.</p>}
         <div className="grid grid-cols-3 gap-2">
           {ACTIVITY_TYPES.map((t) => (
             <button
               key={t.key}
               type="button"
-              onClick={() => setActivityType(t.key === activityType ? "" : t.key)}
-              className={`rounded-xl border p-2 text-left text-xs transition ${activityType === t.key ? "border-accent bg-accent-soft" : "border-line bg-elev hover:bg-muted"}`}
+              aria-pressed={activityTypes.includes(t.key)}
+              onClick={() => toggleActivity(t.key)}
+              className={`rounded-xl border p-2 text-left text-xs transition ${activityTypes.includes(t.key) ? "border-accent bg-accent-soft" : "border-line bg-elev hover:bg-muted"}`}
             >
               <div className="text-lg">{t.emoji}</div>
               <div className="font-semibold leading-tight">{t.title}</div>
             </button>
           ))}
         </div>
-        <input type="hidden" name="activityType" value={activityType} />
+        {activityTypes.map((k) => <input key={k} type="hidden" name="activityType" value={k} />)}
         {!bingoKey && <p className="text-xs text-fgm">Шаги без выбранной активности сохраняются в общий счёт, но день активным не делают.</p>}
       </fieldset>
 

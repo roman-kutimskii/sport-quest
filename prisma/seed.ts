@@ -101,7 +101,7 @@ async function main() {
           questId: quest.id,
           kind: ReportKind.ACTIVITY,
           date: d(a.date),
-          activityType: a.activityType,
+          activityTypes: [a.activityType],
           steps: a.steps ?? null,
           status: ReportStatus.APPROVED,
           reviewedAt: new Date(),

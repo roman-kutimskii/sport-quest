@@ -140,7 +140,7 @@ async function main() {
     const existing = date && user
       ? await prisma.report.findMany({ where: { userId: user.id, questId: quest.id, date: new Date(`${date}T00:00:00.000Z`), status: { not: ReportStatus.REJECTED } } })
       : [];
-    const existingLabel = existing.map((r) => (r.kind === "BINGO" ? `бинго ${r.bingoKey}` : r.kind === "STEPS" ? `шаги ${r.steps}` : `${r.activityType}${r.steps ? ` ${r.steps}` : ""}`) + (r.source === "WEB" ? " (сайт)" : " (бот)")).join(", ");
+    const existingLabel = existing.map((r) => (r.kind === "BINGO" ? `бинго ${r.bingoKey}` : r.kind === "STEPS" ? `шаги ${r.steps}` : `${r.activityTypes.join("+")}${r.steps ? ` ${r.steps}` : ""}`) + (r.source === "WEB" ? " (сайт)" : " (бот)")).join(", ");
     const act = ACTIVITY_TYPES.find((t) => t.key === extraction.activity_type);
     const bingo = BINGO_TASKS.find((t) => t.key === extraction.bingo_key);
     const bingoLabel = bingo ? `${bingo.emoji} ${decision.bingo === "save" ? "явно" : decision.bingo === "offer" ? "догадка" : "без фото"}` : "";

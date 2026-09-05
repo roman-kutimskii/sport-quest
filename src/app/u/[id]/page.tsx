@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getActiveQuest, getUserBreakdown, questDates } from "@/lib/quest";
-import { BINGO_TASKS, ACTIVITY_TYPES } from "@/lib/bingo";
+import { BINGO_TASKS, activityLabel } from "@/lib/bingo";
 import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Invulnerable, Pumpkins, StreakBadge } from "@/components/pumpkins";
 import { QuestCalendar } from "@/components/calendar";
@@ -108,7 +108,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
                 <div className="w-24 shrink-0 text-fgm">{formatRuDate(d)}</div>
                 <div className="min-w-0 flex-1 space-y-1">
                   {group.map((r) => {
-                    const type = ACTIVITY_TYPES.find((t) => t.key === r.activityType);
+                    const type = activityLabel(r.activityTypes);
                     const bingo = BINGO_TASKS.find((t) => t.key === r.bingoKey);
                     const st = STATUS[r.status];
                     return (
@@ -116,7 +116,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="font-semibold">
-                              {r.kind === "BINGO" ? `🎯 ${bingo?.emoji ?? ""} ${bingo?.title ?? r.bingoKey}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type?.emoji ?? "✨"} ${type?.title ?? "Активность"}`}
+                              {r.kind === "BINGO" ? `🎯 ${bingo?.emoji ?? ""} ${bingo?.title ?? r.bingoKey}` : r.kind === "STEPS" ? "👣 Только шаги" : `${type.emoji} ${type.title}`}
                             </span>
                             {r.steps ? <span className="text-fgm">{r.steps.toLocaleString("ru-RU")} шагов</span> : null}
                             <span className={`chip ${st.cls}`}>{st.label}</span>
