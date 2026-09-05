@@ -11,7 +11,7 @@ import { getActiveQuest, getUserBreakdown, questDates, type Quest } from "@/lib/
 import { LIMITS, type BotConfig } from "./config";
 import { dateInTz, timeInTz } from "./dates";
 import { ExtractionSchema, decide, extractReport, resolveDate, type Extraction } from "./extraction";
-import { displayName, linkSender } from "./identity";
+import { displayName, findLinkedUser, linkSender } from "./identity";
 import { buildAskKeyboard, buildSavedKeyboard } from "./keyboards";
 import type { LlmClient, RateLimiter } from "./llm";
 import { saveTelegramMedia, type LlmImage } from "./media";
@@ -95,9 +95,11 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
   if (isForwarded(m)) return finish(link.id, TelegramLinkStatus.SKIPPED, "forwarded");
   if (!m.from || m.from.is_bot) return finish(link.id, TelegramLinkStatus.SKIPPED, "no sender");
 
-  const user = await linkSender(m.from);
-  await prisma.telegramLink.update({ where: { id: link.id }, data: { userId: user.id } });
-  if (!user.isActive) return finish(link.id, TelegramLinkStatus.SKIPPED, "inactive user");
+  // Existing participants are linked right away; an unknown sender gets an account only if the
+  // message turns out to be a report (chatter must not create zero-score leaderboard rows).
+  const known = await findLinkedUser(m.from);
+  if (known) await prisma.telegramLink.update({ where: { id: link.id }, data: { userId: known.id } });
+  if (known && !known.isActive) return finish(link.id, TelegramLinkStatus.SKIPPED, "inactive user");
 
   const quest = await getActiveQuest();
   const { start, end, today } = questDates(quest);
@@ -122,10 +124,12 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
   proofUrls = proofUrls.slice(0, MAX_PROOFS);
   images = images.slice(0, LIMITS.maxPhotos);
 
-  const closedBingo = await prisma.report.findMany({
-    where: { userId: user.id, questId: quest.id, kind: ReportKind.BINGO, status: { not: ReportStatus.REJECTED } },
-    select: { bingoKey: true },
-  });
+  const closedBingo = known
+    ? await prisma.report.findMany({
+        where: { userId: known.id, questId: quest.id, kind: ReportKind.BINGO, status: { not: ReportStatus.REJECTED } },
+        select: { bingoKey: true },
+      })
+    : [];
   const openBingoKeys = BINGO_KEYS.filter((k) => !closedBingo.some((r) => r.bingoKey === k));
 
   await deps.limiter.acquire();
@@ -162,8 +166,14 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
   }
 
   if (cfg.mode !== "live") {
-    // Shadow: record what would have happened, touch nothing else.
-    return finish(link.id, decision.action === "save" ? TelegramLinkStatus.SAVED : TelegramLinkStatus.ASKED, null);
+    // Shadow: record what would have happened, touch nothing else (no account is created either).
+    return finish(link.id, decision.action === "save" ? TelegramLinkStatus.SAVED : TelegramLinkStatus.ASKED, known ? null : "new participant");
+  }
+
+  const user = known ?? (await linkSender(m.from));
+  if (!known) {
+    await prisma.telegramLink.update({ where: { id: link.id }, data: { userId: user.id } });
+    log(link.id, `created participant ${user.name} (${user.telegramHandle ?? "-"})`);
   }
 
   if (decision.action === "ask") {

@@ -2,7 +2,7 @@
 import { BINGO_TASKS } from "@/lib/bingo";
 import { getActiveQuest, getLeaderboard } from "@/lib/quest";
 import { periodKey, nowInTz } from "./dates";
-import { linkSender } from "./identity";
+import { findLinkedUser, linkSender } from "./identity";
 import { errorMessage, type Deps } from "./ingest";
 import { enqueueDigest } from "./outbox";
 import type { TgMessage } from "./telegram-api";
@@ -55,8 +55,8 @@ export async function handleCommand(deps: Deps, m: TgMessage, cmd: Command): Pro
       }
       case "digest": {
         if (!m.from) return;
-        const user = await linkSender(m.from);
-        if (!user.isAdmin) return;
+        const user = await findLinkedUser(m.from);
+        if (!user?.isAdmin) return;
         const target = cfg.groupChatId ?? chatId;
         const threadId = cfg.groupChatId ? cfg.groupThreadId : (m.message_thread_id ?? null);
         await enqueueDigest(periodKey(nowInTz(cfg.timezone).date), target, threadId, { manual: true });
