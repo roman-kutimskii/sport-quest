@@ -377,7 +377,14 @@ async function main(): Promise<void> {
   const cfg = botConfig();
   if (cfg.mode === "off" || !cfg.token) {
     log(cfg.mode === "off" ? "BOT_MODE=off — idling (set BOT_MODE=shadow|live to start)" : "TELEGRAM_BOT_TOKEN is not set — idling");
-    await new Promise<void>(() => undefined); // never resolves: keeps `restart: unless-stopped` from looping
+    // A pending promise alone does not keep Node alive (the event loop would drain and the process
+    // would exit 0, making `restart: unless-stopped` loop); a timer does. Re-checks nothing: the
+    // container is restarted by the deploy when the mode changes.
+    const keepAlive = setInterval(() => undefined, 3_600_000);
+    const exit = () => { clearInterval(keepAlive); process.exit(0); };
+    process.on("SIGTERM", exit);
+    process.on("SIGINT", exit);
+    await new Promise<void>(() => undefined);
     return;
   }
 
