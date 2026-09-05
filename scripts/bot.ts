@@ -37,8 +37,24 @@ const BOT_COMMANDS = [
   { command: "me", description: "Мои тыковки, стрик, бинго и шаги" },
   { command: "top", description: "Топ-10 таблицы лидеров" },
   { command: "help", description: "Что умеет бот" },
-  { command: "digest", description: "Итоги недели сейчас (для организатора)" },
 ];
+const ADMIN_COMMANDS = [...BOT_COMMANDS, { command: "digest", description: "Итоги недели сейчас" }];
+
+/**
+ * Everyone sees the basic menu; site admins whose Telegram id is known additionally see /digest
+ * in the group (Telegram's `chat_member` scope). Admins get their id on their next sign-in.
+ */
+async function registerCommands(deps: WorkerDeps): Promise<void> {
+  const { api, cfg } = deps;
+  await api.setMyCommands(BOT_COMMANDS);
+  if (!cfg.groupChatId) return;
+  const admins = await prisma.user.findMany({ where: { isAdmin: true, isActive: true, telegramUserId: { not: null } }, select: { telegramUserId: true } });
+  for (const a of admins) {
+    await api
+      .setMyCommands(ADMIN_COMMANDS, { type: "chat_member", chat_id: cfg.groupChatId, user_id: Number(a.telegramUserId) })
+      .catch((e) => logError(`admin menu for ${a.telegramUserId} failed`, e));
+  }
+}
 
 const POLL_TIMEOUT_SEC = 30;
 const PROCESS_TICK_MS = 1000;
@@ -416,7 +432,7 @@ async function main(): Promise<void> {
   }
   deps.botUsername = me.username;
   await setState(STATE_KEYS.botUsername, me.username ?? null);
-  await api.setMyCommands(BOT_COMMANDS).catch((e) => logError("setMyCommands failed (menu may be stale)", e));
+  await registerCommands(deps).catch((e) => logError("setMyCommands failed (menu may be stale)", e));
   log(`started as @${me.username ?? me.id}, mode=${cfg.mode}, group=${cfg.groupChatId ?? "(not set — use /id)"}${cfg.groupThreadId ? `/${cfg.groupThreadId}` : ""}, llm=${cfg.llm.model}, proxy=${cfg.proxyUrl ? "on" : "off"}`);
   if (!cfg.llm.baseUrl || !cfg.llm.apiKey) logError("LLM_BASE_URL / LLM_API_KEY not set — message classification will fail");
 
