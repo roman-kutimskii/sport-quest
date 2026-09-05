@@ -35,6 +35,8 @@ export const EVAL_SET: EvalCase[] = [
   { text: "14 532 шага за день", expect: { is_report: true, steps: 14532 } },
   { text: "12к шагов сегодня", expect: { is_report: true, steps: 12000 } },
   { text: "Отчёт: бег 6 км, 11 200 шагов", expect: { is_report: true, band: "save", activity_types: ["run"], steps: 11200 } },
+  { text: "Утром пробежка 5 км, вечером йога полчаса", expect: { is_report: true, band: "save", activity_types: ["run", "yoga"] } },
+  { text: "Зал + бассейн сегодня, устал 😅", expect: { is_report: true, band: "save", activity_types: ["gym", "swim"] } },
   { text: "", mediaKinds: ["photo"], expect: { is_report: true } }, // photo without caption — any band, the model decides from the image
   { text: "Час в тренажёрке", mediaKinds: ["photo"], expect: { is_report: true, band: "save", activity_types: ["gym"] } },
   { text: "Сходила на пилатес", expect: { is_report: true, band: "save" } },
