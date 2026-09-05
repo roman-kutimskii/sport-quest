@@ -27,7 +27,7 @@ describe("telegram export helpers", () => {
     expect(exportMediaKind(msg(1, { file: "video_files/a.mp4", media_type: "video_file", mime_type: "video/mp4" }))).toBe("video");
     expect(exportMediaKind(msg(1, { file: "files/a.pdf", mime_type: "application/pdf" }))).toBe("document");
     expect(exportMediaKind(msg(1))).toBeNull();
-    expect(exportChatId(2365064378)).toBe("-1002365064378");
+    expect(exportChatId(1234567890)).toBe("-1001234567890");
   });
 
   it("groups albums and respects the time range", () => {

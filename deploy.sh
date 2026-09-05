@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
 # Deploy the prebuilt images to the VPS. Usage: [IMAGE_TAG=<tag>] ./deploy.sh [user@host]
+# The target host comes from the argument or $DEPLOY_HOST (CI passes it from a repo secret).
 # Images are built and pushed to GHCR by .github/workflows/deploy.yml; this only
 # syncs the compose/Caddy config, pulls, and restarts.
 set -euo pipefail
-HOST="${1:-root@82.146.60.122}"
+HOST="${1:-${DEPLOY_HOST:-}}"
+if [ -z "$HOST" ]; then
+  echo "no target host: pass one (./deploy.sh user@host) or set DEPLOY_HOST" >&2
+  exit 1
+fi
 TAG="${IMAGE_TAG:-latest}"
 DIR=/opt/sport-quest
 SSH="${RSYNC_RSH:-ssh}"

@@ -72,14 +72,14 @@ npm run bot:replay-shadow                                # при переход
 Разово на сервере: установить Docker, создать `/opt/sport-quest/.env.prod` по образцу `.env.prod.example`
 (сгенерировать `POSTGRES_PASSWORD` и `SESSION_SECRET` через `openssl rand -hex 32`).
 
-Каждый деплой с ноутбука:
+Каждый деплой с ноутбука (хост — аргумент или `DEPLOY_HOST`):
 ```bash
-./deploy.sh              # rsync → docker compose up --build → prisma migrate deploy
+DEPLOY_HOST=root@<vps> ./deploy.sh   # rsync → docker compose pull → up -d → prisma migrate deploy
 ```
 
 Первый запуск — создать квест и админа (без тестовых участников):
 ```bash
-ssh root@82.146.60.122 'cd /opt/sport-quest && docker compose -f compose.prod.yml --env-file .env.prod run --rm tools npx tsx prisma/seed.ts'
+ssh "$DEPLOY_HOST" 'cd /opt/sport-quest && docker compose -f compose.prod.yml --env-file .env.prod run --rm tools npx tsx prisma/seed.ts'
 ```
 Дальше участники сами входят через Telegram.
 
