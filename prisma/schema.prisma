@@ -25,12 +25,39 @@ enum AwardType {
   STREAK_7
 }
 
+enum ReportSource {
+  WEB
+  TELEGRAM
+}
+
+enum TelegramLinkStatus {
+  RECEIVED
+  SKIPPED
+  ASKED
+  SAVED
+  UNDONE
+  FAILED
+}
+
+enum OutboxKind {
+  REPORT_CREATED
+  DIGEST
+  TEXT
+}
+
+enum OutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 model User {
   id             String       @id @default(cuid())
   name           String
   avatarEmoji    String       @default("🏃")
   telegramHandle String?
-  telegramId     String?      @unique
+  telegramId     String?      @unique // OIDC `sub` from Telegram Login
+  telegramUserId String?      @unique // numeric Telegram user id (Bot API `from.id`, OIDC `id` claim)
   isAdmin        Boolean      @default(false)
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
@@ -73,14 +100,70 @@ model Report {
   reviewedById String?
   reviewedAt   DateTime?
   rejectReason String?
+  source       ReportSource @default(WEB)
+  linkId       String?
   createdAt    DateTime     @default(now())
 
-  user       User  @relation(fields: [userId], references: [id])
-  quest      Quest @relation(fields: [questId], references: [id])
-  reviewedBy User? @relation("Reviewer", fields: [reviewedById], references: [id])
+  user       User          @relation(fields: [userId], references: [id])
+  quest      Quest         @relation(fields: [questId], references: [id])
+  reviewedBy User?         @relation("Reviewer", fields: [reviewedById], references: [id])
+  link       TelegramLink? @relation(fields: [linkId], references: [id], onDelete: SetNull)
 
   @@index([userId, questId, date])
   @@index([questId, status])
+  @@index([linkId])
+}
+
+/// One row per processed Telegram group message (or album).
+model TelegramLink {
+  id             String             @id @default(cuid())
+  chatId         String
+  messageId      Int
+  threadId       Int?
+  mediaGroupId   String?
+  fromUserId     String
+  fromName       String?
+  userId         String?
+  messageDate    DateTime
+  text           String?
+  mediaKinds     String[]           @default([])
+  update         Json?
+  status         TelegramLinkStatus @default(RECEIVED)
+  extraction     Json?
+  llmRaw         String?
+  confidence     Float?
+  replyMessageId Int?
+  error          String?
+  createdAt      DateTime           @default(now())
+  processedAt    DateTime?
+  reports        Report[]
+
+  @@unique([chatId, messageId])
+  @@index([status, createdAt])
+  @@index([mediaGroupId])
+}
+
+/// Everything the bot sends that is not a direct reply to a message.
+model Outbox {
+  id        String       @id @default(cuid())
+  kind      OutboxKind
+  chatId    String?
+  threadId  Int?
+  payload   Json
+  dedupeKey String?      @unique
+  status    OutboxStatus @default(PENDING)
+  attempts  Int          @default(0)
+  error     String?
+  sentAt    DateTime?
+  createdAt DateTime     @default(now())
+
+  @@index([status, createdAt])
+}
+
+/// Key/value state for the bot worker: getUpdates offset, last digest period, health timestamps.
+model BotState {
+  key   String @id
+  value Json
 }
 
 model Adjustment {

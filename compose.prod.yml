@@ -28,6 +28,7 @@ services:
       TELEGRAM_CLIENT_SECRET: ${TELEGRAM_CLIENT_SECRET:-}
       TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
       TELEGRAM_ADMIN_USERNAMES: ${TELEGRAM_ADMIN_USERNAMES:-}
+      BOT_MODE: ${BOT_MODE:-off}
     volumes:
       - uploads:/data/uploads
     depends_on:
@@ -35,6 +36,35 @@ services:
         condition: service_healthy
     expose:
       - "3000"
+
+  # Telegram group bot: long-polls Telegram through the proxy, files reports via the LLM,
+  # announces website reports and posts the weekly digest. Runs on the tools image (full source).
+  bot:
+    image: ghcr.io/roman-kutimskii/sport-quest:${IMAGE_TAG:-latest}-tools
+    restart: unless-stopped
+    # The receive loop long-polls for up to 30 s; give it time to finish before SIGKILL.
+    stop_grace_period: 50s
+    command: npx tsx scripts/bot.ts
+    environment:
+      DATABASE_URL: postgresql://sportquest:${POSTGRES_PASSWORD}@db:5432/sportquest
+      UPLOAD_DIR: /data/uploads
+      PUBLIC_URL: https://${DOMAIN}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_GROUP_CHAT_ID: ${TELEGRAM_GROUP_CHAT_ID:-}
+      TELEGRAM_GROUP_THREAD_ID: ${TELEGRAM_GROUP_THREAD_ID:-}
+      TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gemini-3.8-flash-high}
+      BOT_MODE: ${BOT_MODE:-off}
+      DIGEST_WEEKDAY: ${DIGEST_WEEKDAY:-0}
+      DIGEST_HOUR: ${DIGEST_HOUR:-20}
+      DIGEST_LLM_COMMENT: ${DIGEST_LLM_COMMENT:-0}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db:
+        condition: service_healthy
 
   # One-off tooling (migrations, seed) from the full build stage:
   #   docker compose -f compose.prod.yml --env-file .env.prod run --rm tools npx prisma migrate deploy

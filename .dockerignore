@@ -7,3 +7,4 @@ uploads
 !.env.example
 .claude
 *.md
+api_key.txt

@@ -67,7 +67,11 @@ export const getUserBreakdown = cache(async (quest: Quest, userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      reports: { where: { questId: quest.id }, orderBy: [{ date: "desc" }, { createdAt: "desc" }] },
+      reports: {
+        where: { questId: quest.id },
+        orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+        include: { link: { select: { chatId: true, messageId: true, threadId: true } } },
+      },
       adjustments: { where: { questId: quest.id }, orderBy: { createdAt: "desc" } },
     },
   });

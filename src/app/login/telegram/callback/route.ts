@@ -35,23 +35,30 @@ export async function GET(req: NextRequest) {
     return fail("tg_invalid");
   }
   const telegramId = identity.id;
+  const telegramUserId = identity.telegramUserId ?? null;
   const handle = normalizeHandle(identity.username);
   const admin = isBootstrapAdmin(identity.username);
 
+  // Match order: OIDC subject → numeric Telegram id (users first created by the group bot) → pre-entered @username.
   let user = await prisma.user.findUnique({ where: { telegramId } });
+  if (!user && telegramUserId) {
+    const byNumeric = await prisma.user.findUnique({ where: { telegramUserId } });
+    if (byNumeric && !byNumeric.telegramId) user = await prisma.user.update({ where: { id: byNumeric.id }, data: { telegramId } });
+  }
   if (!user && handle) {
     const candidates = await prisma.user.findMany({ where: { telegramHandle: { not: null }, telegramId: null } });
     const match = candidates.find((u) => normalizeHandle(u.telegramHandle) === handle);
     if (match) user = await prisma.user.update({ where: { id: match.id }, data: { telegramId, isAdmin: match.isAdmin || admin } });
   }
   if (user) {
-    const patch: { telegramHandle?: string; isAdmin?: boolean } = {};
+    const patch: { telegramHandle?: string; telegramUserId?: string; isAdmin?: boolean } = {};
     if (identity.username && identity.username !== user.telegramHandle) patch.telegramHandle = identity.username;
+    if (telegramUserId && telegramUserId !== user.telegramUserId) patch.telegramUserId = telegramUserId;
     if (admin && !user.isAdmin) patch.isAdmin = true;
     if (Object.keys(patch).length) user = await prisma.user.update({ where: { id: user.id }, data: patch });
   } else {
     const name = (identity.name ?? identity.username ?? "Участник").trim().slice(0, 60) || "Участник";
-    user = await prisma.user.create({ data: { name, telegramId, telegramHandle: identity.username ?? null, isAdmin: admin } });
+    user = await prisma.user.create({ data: { name, telegramId, telegramUserId, telegramHandle: identity.username ?? null, isAdmin: admin } });
     console.log(`[tg] created user ${name} (${identity.username ?? "-"})`);
   }
   if (!user.isActive) {

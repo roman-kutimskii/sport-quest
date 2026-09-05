@@ -43,3 +43,6 @@ next-env.d.ts
 src/generated/
 .env
 .env.prod
+
+# local secrets
+api_key.txt

@@ -10,6 +10,7 @@ import { Proofs } from "@/components/proof";
 import { MyGallery } from "./my-gallery";
 import { deleteOwnReport } from "@/app/log/actions";
 import { ProfileForm } from "./profile-form";
+import { messageLink } from "@/lib/bot/undo";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +120,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
                             </span>
                             {r.steps ? <span className="text-fgm">{r.steps.toLocaleString("ru-RU")} шагов</span> : null}
                             <span className={`chip ${st.cls}`}>{st.label}</span>
+                            {r.source === "TELEGRAM" && <TelegramMark link={r.link} />}
                           </div>
                           {r.status === "REJECTED" && r.rejectReason && <div className="mt-1 text-danger">Причина: {r.rejectReason}</div>}
                         </div>
@@ -172,6 +174,20 @@ function groupSubmissions<T extends { date: Date; comment: string | null; proofU
     else { const ng = [r]; index.set(key, ng); groups.push(ng); }
   }
   return groups;
+}
+
+/** Small marker on reports the group bot filed, linking to the original message. */
+function TelegramMark({ link }: { link: { chatId: string; messageId: number; threadId: number | null } | null }) {
+  const url = link ? messageLink(link.chatId, link.messageId, link.threadId) : null;
+  const icon = (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden fill="currentColor">
+      <path d="M21.4 4.6 3.6 11.5c-1.2.5-1.2 1.2-.2 1.5l4.5 1.4 1.7 5.3c.2.6.1.8.7.8.5 0 .7-.2 1-.5l2.4-2.3 4.9 3.6c.9.5 1.5.2 1.8-.8l3.2-15c.3-1.3-.5-1.9-1.4-1.5zM8.7 14.1l9.2-5.8c.5-.3.9-.1.5.2l-7.6 6.9-.3 3.2-1.8-4.5z" />
+    </svg>
+  );
+  const cls = "inline-flex items-center gap-1 text-xs text-fgm hover:text-accent";
+  return url
+    ? <a href={url} target="_blank" rel="noreferrer" className={cls} title="Записано ботом из сообщения в группе">{icon}<span>из чата</span></a>
+    : <span className={cls} title="Записано ботом из группы">{icon}<span>из чата</span></span>;
 }
 
 function Stat({ label, value }: { label: string; value: string }) {

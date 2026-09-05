@@ -89,3 +89,35 @@ export async function setNomination(formData: FormData) {
   }
   refreshAll();
 }
+
+/** Same as the «🗑 Отменить» button: delete what the bot created from one group message. */
+export async function undoTelegramLink(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const { undoLink } = await import("@/lib/bot/undo");
+  const res = await undoLink(id);
+  if (!res) return;
+  if (res.link.replyMessageId) {
+    // The worker edits the bot's reply to «Отменено» and removes the buttons.
+    await prisma.outbox.create({
+      data: {
+        kind: "TEXT",
+        chatId: res.link.chatId,
+        threadId: res.link.threadId,
+        payload: { text: "Отменено", editMessageId: res.link.replyMessageId },
+        dedupeKey: `undo:${res.link.id}`,
+      },
+    }).catch(() => undefined);
+  }
+  refreshAll(res.userId ?? undefined);
+}
+
+export async function mergeParticipants(formData: FormData) {
+  const admin = await requireAdmin();
+  const fromId = String(formData.get("fromId") ?? "");
+  const intoId = String(formData.get("intoId") ?? "");
+  if (!fromId || !intoId || fromId === admin.id) return;
+  const { mergeUsers } = await import("@/lib/users/merge");
+  await mergeUsers(fromId, intoId);
+  refreshAll(intoId);
+}

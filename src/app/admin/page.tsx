@@ -5,7 +5,8 @@ import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
 import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Proofs } from "@/components/proof";
 import { NOMINATIONS } from "@/lib/nominations";
-import { addAdjustment, approveAllPending, reviewReport, setNomination, toggleUser, updateQuestSettings } from "./actions";
+import { addAdjustment, approveAllPending, mergeParticipants, reviewReport, setNomination, toggleUser, updateQuestSettings } from "./actions";
+import { BotSection } from "./bot-section";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +77,7 @@ export default async function AdminPage() {
             return (
               <li key={u.id} className={`flex flex-wrap items-center gap-2 py-2 ${u.isActive ? "" : "opacity-50"}`}>
                 <span className="w-40 font-semibold">{u.avatarEmoji} {u.name}{u.isAdmin && " 👑"}</span>
-                <span className="min-w-0 flex-1 truncate text-xs text-fgm">{u.telegramHandle ? `@${u.telegramHandle}` : "—"}</span>
+                <span className="min-w-0 flex-1 truncate text-xs text-fgm">{u.telegramHandle ? `@${u.telegramHandle}` : "—"}{u.telegramUserId ? "" : " · без id"}</span>
                 <form action={toggleUser} className="flex gap-1">
                   <input type="hidden" name="id" value={u.id} />
                   <button name="field" value="isActive" className="btn-ghost !px-2 !py-1 text-xs">{u.isActive ? "деактивировать" : "активировать"}</button>
@@ -87,6 +88,25 @@ export default async function AdminPage() {
           })}
         </ul>
       </section>
+
+      <section className="card p-5">
+        <h2 className="font-bold">Объединить участников</h2>
+        <p className="mt-1 text-xs text-fgm">Если бот создал дубликат (участник без @username, который ещё не входил на сайт): отчёты переедут, дубликат деактивируется.</p>
+        <form action={mergeParticipants} className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-center">
+          <select name="fromId" className="input" required>
+            <option value="">— дубликат —</option>
+            {users.map((u) => <option key={u.id} value={u.id}>{u.avatarEmoji} {u.name}{u.telegramHandle ? ` (@${u.telegramHandle})` : ""}</option>)}
+          </select>
+          <span className="text-center text-fgm">→</span>
+          <select name="intoId" className="input" required>
+            <option value="">— основной аккаунт —</option>
+            {users.filter((u) => u.isActive).map((u) => <option key={u.id} value={u.id}>{u.avatarEmoji} {u.name}{u.telegramHandle ? ` (@${u.telegramHandle})` : ""}</option>)}
+          </select>
+          <button className="btn-ghost">Объединить</button>
+        </form>
+      </section>
+
+      <BotSection mode={process.env.BOT_MODE ?? "off"} />
 
       <section className="card p-5">
         <h2 className="font-bold">Корректировка баллов</h2>

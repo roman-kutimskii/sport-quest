@@ -57,7 +57,8 @@ export function buildAuthUrl(flow: TelegramFlow, redirectUri: string) {
   return u.toString();
 }
 
-export type TelegramIdentity = { id: string; username?: string; name?: string; picture?: string };
+/** `id` is the OIDC `sub`; `telegramUserId` is the numeric Telegram user id from the `id` claim (what the Bot API reports as `from.id`). */
+export type TelegramIdentity = { id: string; telegramUserId?: string; username?: string; name?: string; picture?: string };
 
 export async function exchangeCode(code: string, redirectUri: string, flow: TelegramFlow): Promise<TelegramIdentity> {
   const res = await tgFetch(TG_TOKEN_URL, {
@@ -89,7 +90,10 @@ export async function exchangeCode(code: string, redirectUri: string, flow: Tele
   if (payload.nonce !== flow.nonce) throw new Error("nonce mismatch");
   if (typeof payload.sub !== "string" || !payload.sub) throw new Error("bad sub");
   const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
-  return { id: payload.sub, username: str(payload.preferred_username), name: str(payload.name), picture: str(payload.picture) };
+  const numericId = payload.id;
+  const telegramUserId = typeof numericId === "number" || (typeof numericId === "string" && /^\d+$/.test(numericId)) ? String(numericId) : undefined;
+  if (process.env.AUTH_DEBUG) console.log(`[tg] claims sub=${payload.sub} id=${String(numericId)} username=${str(payload.preferred_username)}`);
+  return { id: payload.sub, telegramUserId, username: str(payload.preferred_username), name: str(payload.name), picture: str(payload.picture) };
 }
 
 /** Telegram usernames (comma-separated env) that are granted admin on sign-in. */

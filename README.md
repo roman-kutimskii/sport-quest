@@ -32,6 +32,21 @@ Seed создаёт квест, админа «Роман» и трёх тест
 
 Загрузки хранятся в `./uploads` (переменная `UPLOAD_DIR`) и отдаются только авторизованным.
 
+## Telegram-бот
+Спецификация — [SPEC-TELEGRAM-BOT.md](SPEC-TELEGRAM-BOT.md). Отдельный процесс `scripts/bot.ts` (в проде — сервис `bot`
+в `compose.prod.yml` на образе `-tools`) long-poll'ит Telegram через `TELEGRAM_PROXY_URL` (вебхуки с VPS не работают),
+классифицирует сообщения группы через LLM (`LLM_BASE_URL`, CLIProxyAPI) и записывает отчёты через общий
+`createReport` из `src/lib/reports/create.ts`. Веб-приложение с Telegram не общается: отчёты с сайта попадают в таблицу
+`Outbox`, бот сам их анонсирует. Раз в неделю (вс 20:00 МСК) — дайджест.
+
+Режимы `BOT_MODE`: `off` (не запускается), `shadow` (только классифицирует и пишет в лог на админке), `live`.
+Первый запуск: задать `TELEGRAM_BOT_TOKEN`, отправить `/id` в группе, чтобы узнать `TELEGRAM_GROUP_CHAT_ID`, затем `shadow` на 2–3 дня.
+
+```bash
+npm run bot            # локально; нужны переменные из .env.example
+npm run bot:eval       # прогон эвал-набора по промпту (нужен LLM)
+```
+
 ## Скрипты
 | Команда | Что делает |
 |---|---|
@@ -41,6 +56,8 @@ Seed создаёт квест, админа «Роман» и трёх тест
 | `npm run db:migrate` | prisma migrate dev + seed |
 | `npm run db:seed` | только seed |
 | `npm run db:studio` | Prisma Studio |
+| `npm run bot` | Telegram-бот (worker) |
+| `npm run bot:eval` | эвал LLM-извлечения |
 
 ## Принятые допущения (уточнить у организатора)
 См. раздел «Open Questions» в SPEC.md. По умолчанию: бонусы за стрик суммируются (7 дней = +17) и счётчик

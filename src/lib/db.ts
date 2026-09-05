@@ -21,5 +21,8 @@ export type {
   Adjustment,
   NominationResult,
   AmbassadorVote,
+  TelegramLink,
+  Outbox,
+  BotState,
 } from "@/generated/prisma/client";
-export { Prisma, ReportKind, ReportStatus, AwardType } from "@/generated/prisma/client";
+export { Prisma, ReportKind, ReportStatus, AwardType, ReportSource, TelegramLinkStatus, OutboxKind, OutboxStatus } from "@/generated/prisma/client";
