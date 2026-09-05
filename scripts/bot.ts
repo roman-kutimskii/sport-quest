@@ -392,12 +392,19 @@ async function main(): Promise<void> {
   const llm = new OpenAiCompatLlm({ ...cfg.llm, timeoutMs: LIMITS.llmTimeoutMs });
   const deps: WorkerDeps = { api, llm, limiter: new RateLimiter(LIMITS.llmPerMinute), cfg };
 
+  // The proxy can be slow to answer the first request; retry a few times before giving up
+  // (a 401 means the token is wrong and retrying is pointless).
   let me;
-  try {
-    me = await api.getMe();
-  } catch (e) {
-    logError("getMe failed — check TELEGRAM_BOT_TOKEN / TELEGRAM_PROXY_URL", e);
-    process.exit(1);
+  for (let attempt = 1; ; attempt++) {
+    try {
+      me = await api.getMe();
+      break;
+    } catch (e) {
+      const fatal = e instanceof TelegramApiError && e.code === 401;
+      logError(`getMe failed (attempt ${attempt}/5) — check TELEGRAM_BOT_TOKEN / TELEGRAM_PROXY_URL`, e);
+      if (fatal || attempt >= 5) process.exit(1);
+      await sleep(5000);
+    }
   }
   deps.botUsername = me.username;
   await setState(STATE_KEYS.botUsername, me.username ?? null);

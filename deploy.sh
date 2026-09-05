@@ -11,7 +11,10 @@ SSH="${RSYNC_RSH:-ssh}"
 rsync -az -e "$SSH" --include=compose.prod.yml --include=Caddyfile --include=deploy.sh \
   --exclude='*' ./ "$HOST:$DIR/"
 
+# IMAGE_TAG is also written into .env.prod so a manual `docker compose up -d` on the server
+# keeps using the deployed images instead of whatever `latest` was pulled last.
 $SSH "$HOST" "cd $DIR && export IMAGE_TAG=$TAG \
+  && sed -i '/^IMAGE_TAG=/d' .env.prod && echo IMAGE_TAG=$TAG >> .env.prod \
   && docker compose -f compose.prod.yml --profile tools --env-file .env.prod pull --quiet \
   && docker compose -f compose.prod.yml --env-file .env.prod up -d --remove-orphans \
   && docker compose -f compose.prod.yml --env-file .env.prod run --rm tools npx prisma migrate deploy \
