@@ -130,7 +130,7 @@ async function handleUpdate(deps: WorkerDeps, u: TgUpdate): Promise<void> {
   const { cfg } = deps;
   if (u.callback_query) return handleCallback(deps, u.callback_query);
   const m = u.message;
-  if (!m) return; // edited_message and anything else: ignored
+  if (!m) return; // edited_message is not subscribed to (allowed_updates); anything else is ignored
 
   const cmd = parseCommand(m, deps.botUsername);
   if (cmd) return handleCommand(deps, m, cmd);

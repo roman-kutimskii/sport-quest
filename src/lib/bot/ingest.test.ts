@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseStoredExtraction, pickActivities, savedActivities } from "./ingest";
+import { collabPartners, parseStoredExtraction, pickActivities, savedActivities } from "./ingest";
 
 const stored = {
   is_report: true, confidence: 0.9, date: null, steps: null, bingo_key: null, bingo_explicit: false, bingo_confidence: 0,
-  summary_ru: "бег", resolvedDate: "2026-09-05", proofUrls: [], hasMedia: false, videoTooLarge: false, text: "бег",
+  collab_with: [] as string[], summary_ru: "бег", resolvedDate: "2026-09-05", proofUrls: [], hasMedia: false, videoTooLarge: false, text: "бег", mentions: [],
 };
 
 describe("parseStoredExtraction", () => {
@@ -27,5 +27,20 @@ describe("pickActivities", () => {
     expect(pickActivities(e, true)).toEqual([]);
     expect(pickActivities({ ...e, steps: 8000 }, false)).toEqual([]);
     expect(pickActivities({ ...e, activity_types: ["run", "yoga"] }, true)).toEqual(["run", "yoga"]);
+  });
+});
+
+describe("collabPartners", () => {
+  it("returns only mentioned participants listed in collab_with, with a display label", () => {
+    const e = parseStoredExtraction({
+      ...stored, activity_types: ["run"], collab_with: ["masha", "tg42", "stranger"],
+      mentions: [
+        { ref: "masha", name: "Маша", participant: true, userId: "u1" },
+        { ref: "tg42", name: "Петя", participant: true, userId: "u2" },
+        { ref: "stranger", name: "@stranger", participant: false, userId: null },
+        { ref: "vasya", name: "Вася", participant: true, userId: "u3" },
+      ],
+    })!;
+    expect(collabPartners(e)).toEqual([{ userId: "u1", label: "@masha" }, { userId: "u2", label: "Петя" }]);
   });
 });

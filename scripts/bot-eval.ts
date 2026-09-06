@@ -30,6 +30,7 @@ function diffs(c: EvalCase, e: Extraction): string[] {
     if (x.date !== undefined && (e.date ?? MESSAGE_DATE) !== x.date) out.push(`date ${e.date ?? "null→" + MESSAGE_DATE} ≠ ${x.date}`);
     if (x.bingo_key !== undefined && e.bingo_key !== x.bingo_key) out.push(`bingo ${e.bingo_key} ≠ ${x.bingo_key}`);
     if (x.bingo_explicit !== undefined && e.bingo_explicit !== x.bingo_explicit) out.push(`bingo_explicit ${e.bingo_explicit} ≠ ${x.bingo_explicit}`);
+    if (x.collab_with !== undefined && [...e.collab_with].sort().join("+") !== [...x.collab_with].sort().join("+")) out.push(`collab_with ${e.collab_with.join("+") || "-"} ≠ ${x.collab_with.join("+") || "-"}`);
   }
   return out;
 }
@@ -41,7 +42,8 @@ async function runCase(llm: OpenAiCompatLlm, limiter: RateLimiter, c: EvalCase):
       llm,
       {
         todayDate: MESSAGE_DATE, messageDate: MESSAGE_DATE, messageTime: MESSAGE_TIME, questStart: QUEST_START, questEnd: QUEST_END,
-        openBingoKeys: OPEN_BINGO, senderName: "Маша", text: c.text || null, mediaKinds: c.mediaKinds ?? [], imageCount: 0, forwarded: false,
+        openBingoKeys: OPEN_BINGO, senderName: "Рома", text: c.text || null, mediaKinds: c.mediaKinds ?? [], imageCount: 0, forwarded: false,
+        mentions: c.mentions ?? [],
       },
       [],
     );
@@ -109,7 +111,7 @@ async function main() {
     const mark = r.diffs.length ? "✗" : "✓";
     const text = pad(r.c.text || `(${(r.c.mediaKinds ?? []).join(",") || "empty"})`, 44);
     const got = r.e
-      ? `${r.e.is_report ? "R" : "-"} ${r.e.confidence.toFixed(2)} ${r.e.activity_types.join("+") || "-"} ${r.e.date ?? "-"} ${r.e.steps ?? "-"} ${r.e.bingo_key ?? "-"}${r.e.bingo_explicit ? "!" : ""}`
+      ? `${r.e.is_report ? "R" : "-"} ${r.e.confidence.toFixed(2)} ${r.e.activity_types.join("+") || "-"} ${r.e.date ?? "-"} ${r.e.steps ?? "-"} ${r.e.bingo_key ?? "-"}${r.e.bingo_explicit ? "!" : ""}${r.e.collab_with.length ? ` [${r.e.collab_with.join(",")}]` : ""}`
       : `ERROR ${r.error}`;
     console.log(`${mark} ${text} ${pad(got, 40)} ${r.diffs.join("; ")}`);
   }
@@ -123,6 +125,7 @@ async function main() {
   console.log(accuracy(results, "steps", (r) => (r.c.expect.steps === undefined ? null : [r.c.expect.steps, r.e!.steps])));
   console.log(accuracy(results, "bingo_key", (r) => (r.c.expect.bingo_key === undefined ? null : [r.c.expect.bingo_key, r.e!.bingo_key])));
   console.log(accuracy(results, "bingo_explicit", (r) => (r.c.expect.bingo_explicit === undefined ? null : [r.c.expect.bingo_explicit, r.e!.bingo_explicit])));
+  console.log(accuracy(results, "collab_with", (r) => (r.c.expect.collab_with === undefined ? null : [[...r.c.expect.collab_with].sort().join("+"), [...r.e!.collab_with].sort().join("+")])));
   const errors = results.filter((r) => r.error).length;
   if (errors) console.log(`${errors} case(s) errored`);
 }

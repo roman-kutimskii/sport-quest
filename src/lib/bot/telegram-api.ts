@@ -25,8 +25,11 @@ export type TgMessage = {
   forward_from?: unknown;
   forward_date?: number;
   reply_to_message?: TgMessage;
-  entities?: { type: string; offset: number; length: number }[];
+  entities?: TgEntity[];
+  caption_entities?: TgEntity[];
 };
+/** `mention` = «@username» in the text; `text_mention` = a user without username, carried in `user`. Offsets are UTF-16 units. */
+export type TgEntity = { type: string; offset: number; length: number; user?: TgUser };
 export type TgCallbackQuery = { id: string; from: TgUser; message?: TgMessage; data?: string };
 export type TgUpdate = { update_id: number; message?: TgMessage; edited_message?: TgMessage; callback_query?: TgCallbackQuery };
 
@@ -39,6 +42,8 @@ const UserSchema = z
 const PhotoSizeSchema = z
   .object({ file_id: z.string(), file_unique_id: z.string(), width: z.number(), height: z.number(), file_size: z.number().optional() })
   .loose();
+
+const EntitySchema = z.object({ type: z.string(), offset: z.number(), length: z.number(), user: UserSchema.optional() }).loose();
 
 const FileBaseSchema = { file_id: z.string(), file_size: z.number().optional(), mime_type: z.string().optional(), thumbnail: PhotoSizeSchema.optional() };
 
@@ -60,7 +65,8 @@ export const MessageSchema: z.ZodType<TgMessage> = z.lazy(() =>
       forward_from: z.unknown().optional(),
       forward_date: z.number().optional(),
       reply_to_message: MessageSchema.optional(),
-      entities: z.array(z.object({ type: z.string(), offset: z.number(), length: z.number() }).loose()).optional(),
+      entities: z.array(EntitySchema).optional(),
+      caption_entities: z.array(EntitySchema).optional(),
     })
     .loose(),
 );
@@ -152,7 +158,7 @@ export class TelegramApi {
       {
         offset: opts.offset,
         timeout: opts.timeoutSec,
-        allowed_updates: opts.allowedUpdates ?? ["message", "edited_message", "callback_query"],
+        allowed_updates: opts.allowedUpdates ?? ["message", "callback_query"],
       },
       { timeoutMs: (opts.timeoutSec + 10) * 1000 },
     );

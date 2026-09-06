@@ -3,9 +3,13 @@
  * Every case is text-only (no images); `expect` lists what a correct extraction must satisfy.
  * Message date for all cases: 2026-09-10 (Thursday) 19:00 Moscow; quest 2026-09-03 … 2026-11-30.
  */
+import type { Mention } from "@/lib/bot/extraction";
+
 export type EvalCase = {
   text: string;
   mediaKinds?: ("photo" | "video")[];
+  /** Users mentioned in the text (what the bot parses from entities), as passed to the prompt. */
+  mentions?: Mention[];
   expect: {
     is_report: boolean;
     /** Expected band when is_report: "save" (≥0.75) | "ask" (0.45–0.75); omitted → any. */
@@ -15,12 +19,20 @@ export type EvalCase = {
     date?: string;
     bingo_key?: string | null;
     bingo_explicit?: boolean;
+    /** Refs of mentioned participants credited with the collab. */
+    collab_with?: string[];
   };
 };
 
 export const MESSAGE_DATE = "2026-09-10";
 export const MESSAGE_TIME = "19:00";
 export const OPEN_BINGO = ["armor", "leaves", "night", "stairs", "zen", "tea", "collab", "weight", "early"];
+
+const MASHA: Mention = { ref: "masha", name: "Маша", participant: true };
+const PETYA: Mention = { ref: "petya", name: "Петя", participant: true };
+/** Text mention of a user without a username. */
+const PETYA_TEXT: Mention = { ref: "tg42", name: "Петя", participant: true };
+const STRANGER: Mention = { ref: "stranger", name: "@stranger", participant: false };
 
 export const EVAL_SET: EvalCase[] = [
   // clear reports
@@ -57,6 +69,16 @@ export const EVAL_SET: EvalCase[] = [
   { text: "Спорт-коллаб с Машей: прогулка 8 км", mediaKinds: ["photo"], expect: { is_report: true, activity_types: ["walk"], bingo_key: "collab", bingo_explicit: true } },
   { text: "Пробежка в темноте с фонариком — ночной дозор 💡", mediaKinds: ["photo"], expect: { is_report: true, activity_types: ["run"], bingo_key: "night", bingo_explicit: true } },
   { text: "Тренировка с тыквой вместо гири 🎃", mediaKinds: ["photo"], expect: { is_report: true, bingo_key: "weight" } },
+
+  // mentions and «Спорт-коллаб» (see 5.2: collab_with may only contain mentioned participants)
+  { text: "Пробежали 5 км с @masha 🍂", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, band: "save", activity_types: ["run"], bingo_key: "collab", bingo_explicit: true, collab_with: ["masha"] } },
+  { text: "Зал с @masha и @petya, ноги", mediaKinds: ["photo"], mentions: [MASHA, PETYA], expect: { is_report: true, activity_types: ["gym"], bingo_key: "collab", bingo_explicit: true, collab_with: ["masha", "petya"] } },
+  { text: "Спасибо @masha за компанию на йоге 🧘", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, activity_types: ["yoga"], bingo_key: "collab", collab_with: ["masha"] } },
+  { text: "Прогулка с Петей, 11 000 шагов", mediaKinds: ["photo"], mentions: [PETYA_TEXT], expect: { is_report: true, activity_types: ["walk"], steps: 11000, bingo_key: "collab", collab_with: ["tg42"] } },
+  { text: "Бег 5 км. @masha, ты как, бегала сегодня?", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, activity_types: ["run"], bingo_key: null, collab_with: [] } },
+  { text: "@masha завтра идём в зал?", mentions: [MASHA], expect: { is_report: false } },
+  { text: "Пробежка с @stranger 6 км", mediaKinds: ["photo"], mentions: [STRANGER], expect: { is_report: true, activity_types: ["run"], bingo_key: "collab", bingo_explicit: false, collab_with: [] } },
+  { text: "Прогулка с женой по парку, 9 км", mediaKinds: ["photo"], expect: { is_report: true, activity_types: ["walk"], bingo_key: "collab", bingo_explicit: false, collab_with: [] } },
 
   // not reports: chatter, encouragement, plans, questions
   { text: "Молодцы! 🔥", expect: { is_report: false } },

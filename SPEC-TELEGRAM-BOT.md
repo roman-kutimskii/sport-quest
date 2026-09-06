@@ -19,7 +19,9 @@ asking are collected in section 12.
 - Private-chat conversation with the bot (Q&A, editing reports by chatting). Editing happens on the site.
 - Moderation from Telegram (approve/reject buttons for admins).
 - Notifying authors about rejections (bots can only DM users who started them; most won't have).
-- Reacting to edited or deleted group messages.
+- Reacting to edited or deleted group messages. The bot subscribes only to `message` and
+  `callback_query` (`allowed_updates`), so edits never reach it: a partner added by editing the post
+  is not seen — send a new message or fix it on the site.
 - Strava/Apple Health import.
 
 ## 2. User-visible behaviour
@@ -57,6 +59,20 @@ Media handling:
 - Albums (Telegram sends each photo as a separate message with a shared `media_group_id`) are
   buffered for 3 seconds and processed as one report.
 - Forwarded messages are never treated as reports.
+
+«Спорт-коллаб» for everyone **[decided]**: when the report mentions other quest participants as
+training partners (`@username` or a text mention of a user without a username), the collab bingo is
+credited to each mentioned participant as well as the author. Mentions are parsed from Telegram
+`entities` (never from free text) and matched to existing active accounts by handle / Telegram id;
+no account is created from a bare handle. The LLM only decides whether the mentioned people took
+part in the activity (`collab_with`) — a mention in another role («@masha, завтра в зал?») credits
+nobody. Partners without an account, or named without an @, are not credited; the bot then treats
+the collab as an inferred bingo for the author (offer button) rather than an explicit one. Partners
+get a BINGO report with the same proof files and `linkId`, created through one shared domain function
+(`src/lib/reports/collab.ts`) that the website form uses too. No confirmation from the partner: a
+wrong credit is +3, visible in the chat, undone by the author's «Отменить» (which deletes every report
+of the link, partners' included) or by the partner deleting the report on the site. A partner whose
+collab is already closed, or who already has a bingo that day, is skipped and named in the reply.
 
 Text-only posts («12 000 шагов», «сегодня зал») are saved as reports without proof **[decided]**.
 Bingo from a text-only post is never auto-saved (rules require a photo); the reply says so.
@@ -189,7 +205,8 @@ System prompt (Russian rules, English keys) containing:
 - the author's open bingo tasks (already-closed ones are excluded from the allowed enum);
 - the exact JSON schema and the rule «if unsure whether this is a report, say so via confidence».
 
-User content: sender display name, message text/caption, whether media is attached and of which
+User content: sender display name, message text/caption, the list of mentioned users (handle,
+name, whether they are a quest participant), whether media is attached and of which
 kind, forwarded flag, and up to **3 photos** (Telegram's ≤800 px size, ~100 KB each) as
 `image_url`. Videos: only the thumbnail Telegram provides.
 
@@ -205,9 +222,14 @@ kind, forwarded flag, and up to **3 photos** (Telegram's ≤800 px size, ~100 KB
   "bingo_key": "leaves",            // enum of the author's open tasks | null
   "bingo_explicit": false,          // author named the task in text
   "bingo_confidence": 0.7,
+  "collab_with": ["masha"],         // handles (from the mentions list given in the input) of participants who trained together with the author
   "summary_ru": "бег 5 км в парке" // ≤ 80 chars, used only in the bot's reply
 }
 ```
+
+`collab_with` is filtered against the mention list the bot passed in (parsed from Telegram
+`entities`), so the LLM cannot invent a partner. Mentions of people who are not participants are
+shown to the LLM as such and can never end up in `collab_with`.
 
 Nothing free-form from the LLM reaches the database: `comment` on the created report is the
 author's original text (truncated to 500 chars); `summary_ru` is only echoed in the reply. Enum
@@ -318,6 +340,11 @@ Extract the body of `submitReport` (validation, bingo uniqueness, transaction) i
 `src/lib/reports/create.ts` so the bot and the form share one implementation. `submitReport`
 additionally enqueues `Outbox(REPORT_CREATED)` for `source = WEB`.
 
+`src/lib/reports/collab.ts` — `awardCollab`: one BINGO(`collab`) report per partner with the same
+date, proof files, source and `linkId`; per-partner failures (already closed, another bingo that day)
+are returned, not thrown. Called from the bot (explicit collab save and the «Да, бинго» button) and
+from the website form, which shows a participant multi-select when «Спорт-коллаб» is chosen.
+
 ### 7.2 Admin page additions
 - «Бот»: last 100 `TelegramLink` rows with status, sender, extraction summary, error; buttons:
   delete created reports (same as undo), open message in Telegram (`t.me/c/<id>/<msg>`).
@@ -353,7 +380,9 @@ above, shares the `uploads` volume). `deploy.sh` needs no change beyond the comp
   forward, callback query, edited message, message from another chat).
 - **LLM eval set** (`scripts/bot-eval.ts`, run manually): ~40 Russian messages with expected
   outputs — clear reports, chatter, encouragement («молодцы!»), plans («завтра побегу»),
-  photos-without-caption, relative dates, steps-only, explicit bingo, food photos. Prints
+  photos-without-caption, relative dates, steps-only, explicit bingo, food photos, mentions
+  (partner in a joint activity → `collab` + `collab_with`; mention in another role → no collab;
+  mention of a non-participant → no `collab_with`). Prints
   precision/recall per threshold band. Run before changing the prompt or thresholds.
 - **Shadow mode in production** for 2–3 days before going live; the admin table shows what the
   bot would have done.

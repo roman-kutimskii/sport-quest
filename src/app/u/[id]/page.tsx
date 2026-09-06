@@ -22,7 +22,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 
 export default async function ProfilePage({ params, searchParams }: PageProps<"/u/[id]">) {
   const { id } = await params;
-  const { saved } = await searchParams;
+  const { saved, collab, collabSkipped } = await searchParams;
   const [viewer, quest] = await Promise.all([getCurrentUser(), getActiveQuest()]);
   const data = await getUserBreakdown(quest, id);
   if (!data) notFound();
@@ -33,7 +33,15 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
 
   return (
     <div className="space-y-6">
-      {saved && <div className="rounded-xl bg-ok-soft p-3 text-sm text-ok">Отчёт сохранён! 🎃</div>}
+      {saved && (
+        <div className="rounded-xl bg-ok-soft p-3 text-sm text-ok">
+          Отчёт сохранён! 🎃
+          {typeof collab === "string" && collab && <div>👥 Коллаб засчитан также: {collab}</div>}
+        </div>
+      )}
+      {typeof collabSkipped === "string" && collabSkipped && (
+        <div className="rounded-xl bg-warn-soft p-3 text-sm text-fg">👥 Коллаб не засчитан — {collabSkipped}</div>
+      )}
 
       <section className="card p-5">
         <div className="flex flex-wrap items-center gap-4">

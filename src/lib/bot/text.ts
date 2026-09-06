@@ -33,6 +33,11 @@ export function fmtDateShort(d: string): string {
 const days = (n: number) => pluralRu(n, "день", "дня", "дней");
 const streakPart = (n: number) => (n > 0 ? `стрик ${n} 🔥` : null);
 const join = (parts: (string | null | undefined)[]) => parts.filter(Boolean).join(" · ");
+/** How a mentioned user is shown in replies: «@handle», or the name for a text mention without username. */
+export function mentionLabel(m: { ref: string; name: string }): string {
+  return /^tg\d+$/.test(m.ref) ? m.name : `@${m.ref}`;
+}
+
 const lower = (s: string) => s.split(" + ").map((x) => (x ? x[0].toLowerCase() + x.slice(1) : x)).join(" + ");
 
 export function renderReplySaved(p: {
@@ -46,6 +51,12 @@ export function renderReplySaved(p: {
   bingoSaved?: { emoji: string; title: string } | null;
   bingoOffer?: { emoji: string; title: string } | null;
   bingoNeedsPhoto?: { title: string } | null;
+  /** Partners credited with «Спорт-коллаб» (labels), partners skipped with a reason, mentioned non-participants. */
+  collabAwarded?: string[];
+  collabSkipped?: { label: string; error: string }[];
+  collabNotParticipants?: string[];
+  /** Partners were named but there is no photo, so nobody got the collab. */
+  collabNoPhoto?: boolean;
   videoTooLarge: boolean;
   summary?: string | null;
 }): string {
@@ -67,6 +78,10 @@ export function renderReplySaved(p: {
   if (p.bingoSaved) lines.push(`${p.bingoSaved.emoji} Бинго «${p.bingoSaved.title}» +3 🎃`);
   if (p.bingoOffer) lines.push(`${p.bingoOffer.emoji} Похоже на бинго «${p.bingoOffer.title}» — засчитать?`);
   if (p.bingoNeedsPhoto) lines.push(`🎯 Бинго «${p.bingoNeedsPhoto.title}» нужно с фото — прикрепи его на сайте`);
+  if (p.collabAwarded?.length) lines.push(`👥 Коллаб засчитан также: ${p.collabAwarded.join(", ")} +3 🎃`);
+  for (const s of p.collabSkipped ?? []) lines.push(`👥 ${s.label}: коллаб не засчитан — ${s.error.toLowerCase()}`);
+  if (p.collabNotParticipants?.length) lines.push(`👥 ${p.collabNotParticipants.join(", ")} не участвует в квесте — коллаб не засчитан`);
+  if (p.collabNoPhoto) lines.push("👥 Коллаб партнёрам нужен с фото — без него не засчитываю");
   if (p.videoTooLarge) lines.push("🎬 Видео больше 20 МБ — прикрепи его на сайте, если нужно");
   return lines.join("\n");
 }

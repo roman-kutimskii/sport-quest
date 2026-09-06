@@ -19,6 +19,7 @@ const fixtures = {
   forwarded: { update_id: 6, message: { message_id: 15, from: USER, chat: GROUP, date: 1757000400, forward_origin: { type: "user", sender_user: { id: 222, is_bot: false, first_name: "Петя" }, date: 1756000000 }, forward_date: 1756000000, text: "10 км!" } },
   callback: { update_id: 7, callback_query: { id: "4382bfdwdsb323b2d9", from: USER, chat_instance: "-1", message: { message_id: 16, from: { id: 999, is_bot: true, first_name: "Bot" }, chat: GROUP, date: 1757000500, text: "Записал" }, data: "b:abc" } },
   edited: { update_id: 8, edited_message: { message_id: 10, from: USER, chat: GROUP, date: 1757000000, edit_date: 1757000600, text: "пробежала 6 км" } },
+  mentions: { update_id: 10, message: { message_id: 11, from: USER, chat: GROUP, date: 1757000800, caption: "Пробежали с @masha и Петей", caption_entities: [{ type: "mention", offset: 12, length: 6 }, { type: "text_mention", offset: 21, length: 5, user: { id: 42, is_bot: false, first_name: "Петя" } }], photo: [{ file_id: "p", file_unique_id: "u", width: 1, height: 1 }] } },
   otherChat: { update_id: 9, message: { message_id: 1, from: USER, chat: { id: 111, type: "private", first_name: "Маша" }, date: 1757000700, text: "/me" } },
 };
 
@@ -27,6 +28,8 @@ describe("UpdateSchema", () => {
     for (const f of Object.values(fixtures)) expect(UpdateSchema.safeParse(f).success, JSON.stringify(f).slice(0, 60)).toBe(true);
     const u = UpdateSchema.parse(fixtures.edited);
     expect((u.edited_message as unknown as { edit_date: number }).edit_date).toBe(1757000600);
+    const m = UpdateSchema.parse(fixtures.mentions).message!;
+    expect(m.caption_entities?.[1].user?.id).toBe(42);
   });
 
   it("exposes the fields the bot needs", () => {
@@ -93,7 +96,7 @@ describe("TelegramApi", () => {
     const api = new TelegramApi({ token: "T", fetchImpl });
     const updates = await api.getUpdates({ offset: 42, timeoutSec: 30 });
     expect(calls[0].url).toBe("https://api.telegram.org/botT/getUpdates");
-    expect(calls[0].body).toMatchObject({ offset: 42, timeout: 30, allowed_updates: ["message", "edited_message", "callback_query"] });
+    expect(calls[0].body).toMatchObject({ offset: 42, timeout: 30, allowed_updates: ["message", "callback_query"] });
     expect(updates.map((u) => u.update_id)).toEqual([1, 99, 7]);
     expect(updates[1]).toEqual({ update_id: 99 });
     expect(updates[0].message?.text).toBe("пробежала 5 км");

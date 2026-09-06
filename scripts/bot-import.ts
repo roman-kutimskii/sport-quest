@@ -181,7 +181,7 @@ async function main() {
 
     const proofUrls: string[] = [];
     if (status === TelegramLinkStatus.SAVED) for (const f of proofFiles) proofUrls.push(await saveProofBytes(f.data, f.mime));
-    const stored: StoredExtraction = { ...extraction, resolvedDate: date, proofUrls, hasMedia, videoTooLarge: false, text };
+    const stored: StoredExtraction = { ...extraction, resolvedDate: date, proofUrls, hasMedia, videoTooLarge: false, text, mentions: [] };
     const link = await prisma.telegramLink.create({
       data: {
         chatId, messageId: primary.id, fromUserId: tgId, fromName: primary.from ?? null, userId: uid,

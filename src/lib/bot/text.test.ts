@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   fmtDateShort,
   fmtSteps,
+  mentionLabel,
   pluralRu,
   renderAnnouncement,
   renderHelp,
@@ -179,5 +180,28 @@ describe("renderTop / renderMe / renderHelp", () => {
     expect(s).toContain("Отменить");
     expect(s).toContain("https://example.org");
     expect(s).not.toContain("\n");
+  });
+});
+
+describe("collab lines", () => {
+  it("lists credited partners, skipped ones with a reason, and non-participants", () => {
+    const s = renderReplySaved({
+      activityTitle: "Бег", activityEmoji: "🏃", date: "2026-09-04", dayAlreadyActive: false, total: 5, streak: 1, videoTooLarge: false,
+      bingoSaved: { emoji: "👥", title: "Спорт-коллаб" },
+      collabAwarded: ["@masha", "Петя"],
+      collabSkipped: [{ label: "@vasya", error: "Это задание бинго уже закрыто (или ждёт проверки)" }],
+      collabNotParticipants: ["@stranger"],
+    });
+    expect(s).toContain("👥 Коллаб засчитан также: @masha, Петя +3 🎃");
+    expect(s).toContain("👥 @vasya: коллаб не засчитан — это задание бинго уже закрыто");
+    expect(s).toContain("👥 @stranger не участвует в квесте — коллаб не засчитан");
+  });
+  it("says partners need a photo", () => {
+    const s = renderReplySaved({ date: "2026-09-04", dayAlreadyActive: false, total: 1, streak: 0, videoTooLarge: false, activityTitle: "Бег", collabNoPhoto: true });
+    expect(s).toContain("Коллаб партнёрам нужен с фото");
+  });
+  it("mentionLabel", () => {
+    expect(mentionLabel({ ref: "masha", name: "Маша" })).toBe("@masha");
+    expect(mentionLabel({ ref: "tg42", name: "Петя" })).toBe("Петя");
   });
 });
