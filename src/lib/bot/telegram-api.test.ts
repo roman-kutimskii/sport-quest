@@ -96,7 +96,7 @@ describe("TelegramApi", () => {
     const api = new TelegramApi({ token: "T", fetchImpl });
     const updates = await api.getUpdates({ offset: 42, timeoutSec: 30 });
     expect(calls[0].url).toBe("https://api.telegram.org/botT/getUpdates");
-    expect(calls[0].body).toMatchObject({ offset: 42, timeout: 30, allowed_updates: ["message", "callback_query"] });
+    expect(calls[0].body).toMatchObject({ offset: 42, timeout: 30, allowed_updates: ["message", "edited_message", "callback_query"] });
     expect(updates.map((u) => u.update_id)).toEqual([1, 99, 7]);
     expect(updates[1]).toEqual({ update_id: 99 });
     expect(updates[0].message?.text).toBe("пробежала 5 км");

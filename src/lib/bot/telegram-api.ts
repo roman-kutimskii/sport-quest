@@ -158,7 +158,7 @@ export class TelegramApi {
       {
         offset: opts.offset,
         timeout: opts.timeoutSec,
-        allowed_updates: opts.allowedUpdates ?? ["message", "callback_query"],
+        allowed_updates: opts.allowedUpdates ?? ["message", "edited_message", "callback_query"],
       },
       { timeoutMs: (opts.timeoutSec + 10) * 1000 },
     );

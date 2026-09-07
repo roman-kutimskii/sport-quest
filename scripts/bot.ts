@@ -23,6 +23,7 @@ import { OpenAiCompatLlm, RateLimiter } from "@/lib/bot/llm";
 import { enqueueDigest, groupAnnouncements } from "@/lib/bot/outbox";
 import { announcementReady, pickEligible, weekFromPeriodKey, zonedTimeToUtc } from "@/lib/bot/queue";
 import { STATE_KEYS, getState, setState } from "@/lib/bot/state";
+import { undoLink } from "@/lib/bot/undo";
 import { TelegramApi, TelegramApiError, mediaKinds, messageText, parseCommand, type TgMessage, type TgUpdate } from "@/lib/bot/telegram-api";
 import { renderAnnouncement, renderPrivateOnlyGroup, type AnnouncementItem } from "@/lib/bot/text";
 
@@ -55,6 +56,9 @@ async function registerCommands(deps: WorkerDeps): Promise<void> {
       .catch((e) => logError(`admin menu for ${a.telegramUserId} failed`, e));
   }
 }
+
+/** `error` marking the extra messages of an album, folded into the primary row by the pipeline. */
+const ALBUM_SIBLING = "album sibling";
 
 const POLL_TIMEOUT_SEC = 30;
 const PROCESS_TICK_MS = 1000;
@@ -116,7 +120,7 @@ async function storeMessage(deps: Deps, m: TgMessage): Promise<void> {
         mediaKinds: mediaKinds(m),
         update: m as unknown as Prisma.InputJsonValue,
         status: isAlbumSibling ? TelegramLinkStatus.SKIPPED : TelegramLinkStatus.RECEIVED,
-        error: isAlbumSibling ? "album sibling" : null,
+        error: isAlbumSibling ? ALBUM_SIBLING : null,
       },
     });
     if (deps.cfg.mode !== "off") log(`stored message ${chatId}/${m.message_id}${isAlbumSibling ? " (album sibling)" : ""}`);
@@ -126,11 +130,54 @@ async function storeMessage(deps: Deps, m: TgMessage): Promise<void> {
   }
 }
 
+/**
+ * A caption added by editing a message (Telegram delivers it as `edited_message`). Only the narrow
+ * case is reprocessed: the message had NO text when the pipeline ran and the edit gave it one — the
+ * bot judged such a message on the photo alone and never saw the words («… + „Лифтофобия“ поднялся
+ * на 8 этаж пешком» added a few hours later). An edit of a message that already had text is
+ * ignored, so fixing a typo never re-files a report.
+ *
+ * Reprocessing undoes the first pass (its reports and the bot's reply) and puts the row back to
+ * RECEIVED with the new text, so the normal pipeline runs again from scratch.
+ */
+async function handleEdit(deps: WorkerDeps, m: TgMessage): Promise<void> {
+  const text = messageText(m);
+  if (!text) return;
+  const chatId = String(m.chat.id);
+  const edited = await prisma.telegramLink.findUnique({ where: { chatId_messageId: { chatId, messageId: m.message_id } } });
+  if (!edited || edited.text) return; // not ours, or it already had a caption
+
+  // The caption may land on any message of an album; the pipeline runs on the primary row.
+  const link = edited.error === ALBUM_SIBLING && edited.mediaGroupId
+    ? await prisma.telegramLink.findFirst({ where: { chatId, mediaGroupId: edited.mediaGroupId, error: { not: ALBUM_SIBLING } } })
+    : edited;
+  await prisma.telegramLink.update({ where: { id: edited.id }, data: { text, update: m as unknown as Prisma.InputJsonValue } });
+  if (!link || link.status === TelegramLinkStatus.UNDONE) return; // sibling without a primary, or cancelled on purpose
+  if (link.status === TelegramLinkStatus.RECEIVED || inFlight.has(link.id)) {
+    log(`edited caption on ${chatId}/${m.message_id} (still queued)`);
+    return; // not processed yet: the running/queued pipeline will read the new text
+  }
+
+  if (link.replyMessageId && deps.cfg.mode === "live") {
+    await deps.api.deleteMessage(chatId, link.replyMessageId).catch((e) => logError(`could not delete reply ${link.replyMessageId}`, e));
+  }
+  const undone = await undoLink(link.id);
+  await prisma.telegramLink.update({
+    where: { id: link.id },
+    data: { status: TelegramLinkStatus.RECEIVED, error: null, extraction: Prisma.DbNull, llmRaw: null, confidence: null, replyMessageId: null, processedAt: null },
+  });
+  log(`edited caption on ${chatId}/${m.message_id}: reprocessing link ${link.id} (${undone?.deleted ?? 0} report(s) undone)`);
+}
+
 async function handleUpdate(deps: WorkerDeps, u: TgUpdate): Promise<void> {
   const { cfg } = deps;
   if (u.callback_query) return handleCallback(deps, u.callback_query);
+  if (u.edited_message) {
+    if (cfg.groupChatId !== null && String(u.edited_message.chat.id) === cfg.groupChatId) await handleEdit(deps, u.edited_message);
+    return;
+  }
   const m = u.message;
-  if (!m) return; // edited_message is not subscribed to (allowed_updates); anything else is ignored
+  if (!m) return; // anything we did not subscribe to is ignored
 
   const cmd = parseCommand(m, deps.botUsername);
   if (cmd) return handleCommand(deps, m, cmd);

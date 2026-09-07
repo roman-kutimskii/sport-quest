@@ -19,9 +19,11 @@ asking are collected in section 12.
 - Private-chat conversation with the bot (Q&A, editing reports by chatting). Editing happens on the site.
 - Moderation from Telegram (approve/reject buttons for admins).
 - Notifying authors about rejections (bots can only DM users who started them; most won't have).
-- Reacting to edited or deleted group messages. The bot subscribes only to `message` and
-  `callback_query` (`allowed_updates`), so edits never reach it: a partner added by editing the post
-  is not seen — send a new message or fix it on the site.
+- Reacting to deleted group messages, or to most edits. The bot subscribes to `edited_message`
+  (`allowed_updates`) for one narrow case only: a message that had NO text when it was processed and
+  gets a caption by editing is filed again from scratch (§2.1a). Any other edit — a partner or a
+  bingo added to a post that already had text, a typo fix — is ignored: send a new message or fix it
+  on the site.
 - Strava/Apple Health import.
 
 ## 2. User-visible behaviour
@@ -86,6 +88,20 @@ Duplicates: if the author already has a non-rejected ACTIVITY report on that dat
 created (the day is already active). Steps from the new message are written onto the existing
 same-day report if it has none; proof files are appended to it only if that report was also
 bot-created. The reply says «день уже засчитан ✅» and still handles steps/bingo.
+
+### 2.1a A caption added later
+
+People post a photo first and write the caption a minute (or three hours) later by editing it. The
+first pass then judged the photo alone: a screenshot of a fitness app became «силовая + ходьба» and
+the «Лифтофобия» named only in the added caption was never seen.
+
+So an `edited_message` whose row has no text yet, and that now has one, is filed again from scratch:
+the reports created by the first pass are deleted, the bot's reply is deleted, the row goes back to
+RECEIVED and the normal pipeline runs on the new text. The caption may land on any message of an
+album — the primary row is the one reprocessed. Rows the author already cancelled («🗑 Отменить»)
+stay cancelled, and a row still queued or in flight is left alone: it will read the new text anyway.
+
+An edit of a message that already had text changes nothing, so a typo fix never re-files a report.
 
 ### 2.2 Who is the author **[decided: auto-create]**
 
