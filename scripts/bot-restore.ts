@@ -6,7 +6,12 @@
  *   npx tsx scripts/bot-restore.ts [linkId] [--apply]
  *
  * Without a linkId the most recently undone message is used. The bot's reply in the chat is edited
- * back from «отменено» to the saved text with its buttons (BOT_MODE=live only).
+ * back from «отменено» to the saved text with its buttons; this needs BOT_MODE=live and the same
+ * TELEGRAM_* env the worker uses, so the script refuses to touch the database without them.
+ *
+ * Re-runnable: the reports are filed before the Telegram call, so a failed send would otherwise
+ * leave them behind with the row still UNDONE. Any reports already attached to the link are
+ * therefore deleted first, and a second run restores from the stored extraction just like the first.
  */
 import "dotenv/config";
 import { prisma, TelegramLinkStatus } from "@/lib/db";
@@ -14,6 +19,7 @@ import { LIMITS, botConfig } from "@/lib/bot/config";
 import { parseStoredExtraction, saveFromExtraction, type Deps } from "@/lib/bot/ingest";
 import { OpenAiCompatLlm, RateLimiter } from "@/lib/bot/llm";
 import { TelegramApi } from "@/lib/bot/telegram-api";
+import { undoLink } from "@/lib/bot/undo";
 
 const args = process.argv.slice(2);
 const apply = args.includes("--apply");
@@ -31,21 +37,34 @@ async function main() {
   if (!link.userId) throw new Error(`link ${link.id} has no linked user`);
 
   console.log(`${link.id}  ${stored.resolvedDate}  «${(stored.text ?? "").replace(/\s+/g, " ").slice(0, 60)}»`);
+
+  // Checked before anything is written: restoring the reports but failing to fix the reply in the
+  // chat leaves the message looking cancelled while the points are back.
+  const cfg = botConfig();
+  if (!cfg.token) throw new Error("TELEGRAM_BOT_TOKEN is not set — the reply in the chat could not be restored");
+  if (cfg.mode !== "live") throw new Error(`BOT_MODE=${cfg.mode} — restoring only makes sense against the live chat`);
+  if (!link.replyMessageId) throw new Error(`link ${link.id} has no reply message to edit`);
+
+  const orphans = await prisma.report.count({ where: { linkId: link.id } });
+  if (orphans) console.log(`${orphans} report(s) left by an interrupted run will be re-filed`);
+
   if (!apply) {
     console.log("Dry run — ничего не записано. Повтори с --apply.");
     return;
   }
 
-  const cfg = botConfig();
   const deps: Deps = {
     api: new TelegramApi({ token: cfg.token, proxyUrl: cfg.proxyUrl }),
     llm: new OpenAiCompatLlm({ ...cfg.llm, timeoutMs: LIMITS.llmTimeoutMs }),
     limiter: new RateLimiter(LIMITS.llmPerMinute),
     cfg,
   };
+  // Clear whatever an interrupted run left behind, so the re-file cannot double-count.
+  if (orphans) await undoLink(link.id);
+
   // The collab awards were deleted with everything else, so let saveFromExtraction grant them again.
   const next = await saveFromExtraction(deps, link, { ...stored, collabAwarded: undefined, collabSkipped: undefined }, {
-    editMessageId: cfg.mode === "live" ? link.replyMessageId : null,
+    editMessageId: link.replyMessageId,
   });
   console.log(`restored: ${next.savedActivityTypes?.join("+") || "—"}${next.bingoSaved ? " + бинго" : ""}`);
 }
