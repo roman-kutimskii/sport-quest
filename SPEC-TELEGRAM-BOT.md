@@ -234,7 +234,7 @@ kind, forwarded flag, and up to **3 photos** (Telegram's ≤800 px size, ~100 KB
   "confidence": 0.92,
   "date": "2026-09-04",            // null → message date
   "activity_types": ["run"],        // keys from ACTIVITY_TYPES; several when one message reports several activities
-  "steps": 12000,                   // int | null
+  "steps": 12000,                   // int | null — from the text or from an attached pedometer screenshot
   "bingo_key": "leaves",            // enum of the author's open tasks | null
   "bingo_explicit": false,          // author named the task in text
   "bingo_confidence": 0.7,
@@ -396,7 +396,8 @@ above, shares the `uploads` volume). `deploy.sh` needs no change beyond the comp
   forward, callback query, edited message, message from another chat).
 - **LLM eval set** (`scripts/bot-eval.ts`, run manually): ~40 Russian messages with expected
   outputs — clear reports, chatter, encouragement («молодцы!»), plans («завтра побегу»),
-  photos-without-caption, relative dates, steps-only, explicit bingo, food photos, mentions
+  photos-without-caption, relative dates, steps-only, steps read off a pedometer screenshot (with
+  negative cases: kcal / BPM / duration must not become steps), explicit bingo, food photos, mentions
   (partner in a joint activity → `collab` + `collab_with`; mention in another role → no collab;
   mention of a non-participant → no `collab_with`). Prints
   precision/recall per threshold band. Run before changing the prompt or thresholds.

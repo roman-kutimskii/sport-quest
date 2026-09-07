@@ -103,6 +103,12 @@ describe("buildSystemPrompt", () => {
     expect(p).not.toMatch(/"stairs".*уже закрыто/);
     expect(p).toContain('"stairs", "leaves"');
   });
+
+  it("allows steps from a pedometer screenshot but not from kcal/BPM/distance", () => {
+    const p = buildSystemPrompt(ctx);
+    expect(p).toContain("СКРИНШОТ ШАГОМЕРА");
+    expect(p).toMatch(/НИКОГДА не считай шагами.*килокалории.*пульс.*километры/);
+  });
 });
 
 describe("extractReport", () => {

@@ -1,6 +1,7 @@
 /**
  * Eval set for the LLM extraction prompt (see SPEC-TELEGRAM-BOT.md §9). Run with `npm run bot:eval`.
- * Every case is text-only (no images); `expect` lists what a correct extraction must satisfy.
+ * Cases are text-only unless they name fixture `images` (see scripts/fixtures/README.md);
+ * `expect` lists what a correct extraction must satisfy.
  * Message date for all cases: 2026-09-10 (Thursday) 19:00 Moscow; quest 2026-09-03 … 2026-11-30.
  */
 import type { Mention } from "@/lib/bot/extraction";
@@ -8,6 +9,11 @@ import type { Mention } from "@/lib/bot/extraction";
 export type EvalCase = {
   text: string;
   mediaKinds?: ("photo" | "video")[];
+  /** Image fixtures sent with the message, as file names under scripts/fixtures/. A case whose
+   *  fixtures are missing is skipped by the runner (the files are local, not committed). */
+  images?: string[];
+  /** Overrides MESSAGE_DATE for this case (image fixtures carry their own date on screen). */
+  messageDate?: string;
   /** Users mentioned in the text (what the bot parses from entities), as passed to the prompt. */
   mentions?: Mention[];
   expect: {
@@ -49,7 +55,8 @@ export const EVAL_SET: EvalCase[] = [
   { text: "Отчёт: бег 6 км, 11 200 шагов", expect: { is_report: true, band: "save", activity_types: ["run"], steps: 11200 } },
   { text: "Утром пробежка 5 км, вечером йога полчаса", expect: { is_report: true, band: "save", activity_types: ["run", "yoga"] } },
   { text: "Зал + бассейн сегодня, устал 😅", expect: { is_report: true, band: "save", activity_types: ["gym", "swim"] } },
-  { text: "", mediaKinds: ["photo"], expect: { is_report: true } }, // photo without caption — any band, the model decides from the image
+  // photo without caption — any band, the model decides from the image alone
+  { text: "", mediaKinds: ["photo"], images: ["photo-workout.jpg"], expect: { is_report: true } },
   { text: "Час в тренажёрке", mediaKinds: ["photo"], expect: { is_report: true, band: "save", activity_types: ["gym"] } },
   { text: "Сходила на пилатес", expect: { is_report: true, band: "save" } },
   { text: "Погоняли в футбол с ребятами", expect: { is_report: true, band: "save" } },
@@ -79,6 +86,42 @@ export const EVAL_SET: EvalCase[] = [
   { text: "@masha завтра идём в зал?", mentions: [MASHA], expect: { is_report: false } },
   { text: "Пробежка с @stranger 6 км", mediaKinds: ["photo"], mentions: [STRANGER], expect: { is_report: true, activity_types: ["run"], bingo_key: "collab", bingo_explicit: false, collab_with: [] } },
   { text: "Прогулка с женой по парку, 9 км", mediaKinds: ["photo"], expect: { is_report: true, activity_types: ["walk"], bingo_key: "collab", bingo_explicit: false, collab_with: [] } },
+
+  // steps from an attached pedometer screenshot (rule 4b). The fixtures are screenshots of
+  // 2026-09-07, so these cases run with that message date — see `messageDate`.
+  {
+    text: "Всем добрый вечер! А я сегодня в перерыве между работой сделал растяжку.",
+    mediaKinds: ["photo"], images: ["steps-7264.png"], messageDate: "2026-09-07",
+    expect: { is_report: true, band: "save", activity_types: ["yoga"], steps: 7264, date: "2026-09-07" },
+  },
+  {
+    // 7264 is under the 10 000 that makes a day a «прогулка», so this is a steps-only report
+    text: "Шаги за сегодня",
+    mediaKinds: ["photo"], images: ["steps-7264.png"], messageDate: "2026-09-07",
+    expect: { is_report: true, band: "save", activity_types: [], steps: 7264 },
+  },
+  // same screenshot, message three days later: the date on screen no longer matches → no steps
+  {
+    text: "Сегодня был зал",
+    mediaKinds: ["photo"], images: ["steps-7264.png"],
+    expect: { is_report: true, activity_types: ["gym"], steps: null, date: "2026-09-10" },
+  },
+  // a workout summary screenshot has kcal / BPM / duration but no steps → steps stays null
+  {
+    text: "Сделал растяжку в перерыве",
+    mediaKinds: ["photo"], images: ["workout-flexibility.png"], messageDate: "2026-09-07",
+    expect: { is_report: true, band: "save", activity_types: ["yoga"], steps: null },
+  },
+  {
+    text: "Итоги тренировки",
+    mediaKinds: ["photo"], images: ["workout-flexibility.png", "streak-congrats.png"], messageDate: "2026-09-07",
+    expect: { is_report: true, steps: null },
+  },
+
+  // text-only regression: numbers that are not steps must never land in steps
+  { text: "Пробежал 6 км, сжёг 173 ккал, средний пульс 86", expect: { is_report: true, activity_types: ["run"], steps: null } },
+  { text: "Тренировка 24 минуты, 131 ккал", expect: { is_report: true, steps: null } },
+  { text: "Поднялся на 9 этаж пешком", mediaKinds: ["photo"], expect: { is_report: true, steps: null } },
 
   // not reports: chatter, encouragement, plans, questions
   { text: "Молодцы! 🔥", expect: { is_report: false } },

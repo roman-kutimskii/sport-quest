@@ -46,3 +46,7 @@ src/generated/
 
 # local secrets
 api_key.txt
+
+# Eval image fixtures are local screenshots (see scripts/fixtures/README.md)
+/scripts/fixtures/*
+!/scripts/fixtures/README.md
