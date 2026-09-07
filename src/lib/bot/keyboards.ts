@@ -1,7 +1,7 @@
 /** Inline keyboards and callback_data encoding for the bot's replies. Pure. */
 import type { InlineKeyboard } from "./telegram-api";
 
-/** b = «Да, бинго», u = «Отменить», y / n = answer to «Это отчёт?». */
+/** b = «Да, бинго», u = «Отменить» (kept for replies sent before the button was removed), y / n = answer to «Это отчёт?». */
 export type CallbackOp = "b" | "u" | "y" | "n";
 const OPS: readonly CallbackOp[] = ["b", "u", "y", "n"];
 
@@ -20,14 +20,11 @@ export function parseCallback(data: string | undefined | null): { op: CallbackOp
   return { op: op as CallbackOp, linkId };
 }
 
-/** Buttons under a «Записал…» reply: optional bingo offer, then «Исправить на сайте» + «Отменить». */
+/** Buttons under a «Записал…» reply: optional bingo offer, then «Исправить на сайте». */
 export function buildSavedKeyboard(p: { linkId: string; userId: string; publicUrl: string; offerBingo: boolean }): InlineKeyboard {
   const rows: InlineKeyboard["inline_keyboard"] = [];
   if (p.offerBingo) rows.push([{ text: "🍂 Да, бинго", callback_data: formatCallback("b", p.linkId) }]);
-  rows.push([
-    { text: "✏️ Исправить на сайте", url: `${p.publicUrl.replace(/\/+$/, "")}/u/${p.userId}` },
-    { text: "🗑 Отменить", callback_data: formatCallback("u", p.linkId) },
-  ]);
+  rows.push([{ text: "✏️ Исправить на сайте", url: `${p.publicUrl.replace(/\/+$/, "")}/u/${p.userId}` }]);
   return { inline_keyboard: rows };
 }
 

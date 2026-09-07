@@ -38,7 +38,7 @@ buttons **[decided]**:
 ```
 🏃 Записал: бег, 4 сен · +1 🎃 · стрик 4 🔥
 🍂 Похоже на бинго «Листопадный фитнес» — засчитать?
-[ 🍂 Да, бинго ]  [ ✏️ Исправить на сайте ]  [ 🗑 Отменить ]
+[ 🍂 Да, бинго ]  [ ✏️ Исправить на сайте ]
 ```
 
 - **Activity** (type, date, steps) is saved without confirmation.
@@ -72,7 +72,7 @@ nobody. Partners without an account, or named without an @, are not credited; th
 the collab as an inferred bingo for the author (offer button) rather than an explicit one. Partners
 get a BINGO report with the same proof files and `linkId`, created through one shared domain function
 (`src/lib/reports/collab.ts`) that the website form uses too. No confirmation from the partner: a
-wrong credit is +3, visible in the chat, undone by the author's «Отменить» (which deletes every report
+wrong credit is +3, visible in the chat, undone from the admin page (which deletes every report
 of the link, partners' included) or by the partner deleting the report on the site. A partner whose
 collab is already closed, or who already has a bingo that day, is skipped and named in the reply.
 
@@ -98,7 +98,7 @@ the «Лифтофобия» named only in the added caption was never seen.
 So an `edited_message` whose row has no text yet, and that now has one, is filed again from scratch:
 the reports created by the first pass are deleted, the bot's reply is deleted, the row goes back to
 RECEIVED and the normal pipeline runs on the new text. The caption may land on any message of an
-album — the primary row is the one reprocessed. Rows the author already cancelled («🗑 Отменить»)
+album — the primary row is the one reprocessed. Rows already cancelled
 stay cancelled, and a row still queued or in flight is left alone: it will read the new text anyway.
 
 An edit of a message that already had text changes nothing, so a typo fix never re-files a report.
@@ -413,7 +413,7 @@ above, shares the `uploads` volume). `deploy.sh` needs no change beyond the comp
 2. Worker skeleton: polling through the proxy, `BotState` offset, `/help`, `/me`, `/top`,
    `/id`. Outbox drain + `REPORT_CREATED` announcements. No LLM yet.
 3. LLM ingestion in `shadow` mode; build the eval set from the shadow log; tune thresholds.
-4. Switch to `live`. Announce in the group how it works and that «🗑 Отменить» exists.
+4. Switch to `live`. Announce in the group how it works.
 5. Digest: first run the coming Sunday; `/digest` for a dry run earlier.
 
 ## 11. Risks

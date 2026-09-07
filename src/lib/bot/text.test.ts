@@ -177,7 +177,6 @@ describe("renderTop / renderMe / renderHelp", () => {
     const s = renderHelp("https://example.org");
     expect(s).toContain("/me");
     expect(s).toContain("/top");
-    expect(s).toContain("Отменить");
     expect(s).toContain("https://example.org");
     expect(s).not.toContain("\n");
   });

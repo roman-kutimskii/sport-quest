@@ -2,7 +2,7 @@ import { prisma, TelegramLinkStatus, type TelegramLink } from "@/lib/db";
 
 /**
  * Undo everything the bot created from one group message: deletes the reports linked to it and
- * marks the link UNDONE. Used by the «🗑 Отменить» button and by the admin page. The caller is
+ * marks the link UNDONE. Used by the admin page and by «🗑 Отменить» buttons still under older replies. The caller is
  * responsible for editing the bot's reply in Telegram (the worker does it directly, the web app
  * enqueues an Outbox TEXT row with `editMessageId`).
  */

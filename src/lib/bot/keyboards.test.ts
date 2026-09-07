@@ -23,21 +23,18 @@ describe("callback data", () => {
 });
 
 describe("buildSavedKeyboard", () => {
-  it("offers bingo on its own row above fix/undo", () => {
+  it("offers bingo on its own row above the fix link", () => {
     const kb = buildSavedKeyboard({ linkId: "L1", userId: "U1", publicUrl: "https://tl-sport.ru/", offerBingo: true });
     expect(kb.inline_keyboard).toEqual([
       [{ text: "🍂 Да, бинго", callback_data: "b:L1" }],
-      [
-        { text: "✏️ Исправить на сайте", url: "https://tl-sport.ru/u/U1" },
-        { text: "🗑 Отменить", callback_data: "u:L1" },
-      ],
+      [{ text: "✏️ Исправить на сайте", url: "https://tl-sport.ru/u/U1" }],
     ]);
   });
 
   it("omits the bingo row when there is nothing to offer", () => {
     const kb = buildSavedKeyboard({ linkId: "L1", userId: "U1", publicUrl: "https://tl-sport.ru", offerBingo: false });
     expect(kb.inline_keyboard).toHaveLength(1);
-    expect(kb.inline_keyboard[0].map((b) => b.callback_data ?? b.url)).toEqual(["https://tl-sport.ru/u/U1", "u:L1"]);
+    expect(kb.inline_keyboard[0].map((b) => b.callback_data ?? b.url)).toEqual(["https://tl-sport.ru/u/U1"]);
   });
 });
 
