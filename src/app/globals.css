@@ -76,4 +76,4 @@ body {
 .btn-ok { @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed bg-ok-soft text-ok hover:opacity-90; }
 .input { @apply w-full rounded-xl border border-line bg-elev px-3 py-2.5 text-sm text-fg outline-none focus:border-accent focus:ring-2 focus:ring-accent/30; }
 .label { @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-fgm; }
-.chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold; }
+.chip { @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold; }

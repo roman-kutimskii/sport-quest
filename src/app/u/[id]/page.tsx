@@ -94,7 +94,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
             return (
               <div key={t.key} className={`rounded-xl border p-3 text-xs ${done ? "border-accent bg-accent-soft" : pending ? "border-line bg-warn-soft" : "border-line bg-muted opacity-70"}`} title={t.description}>
                 <div className="text-2xl">{t.emoji}</div>
-                <div className="mt-1 font-semibold leading-tight">{t.title}</div>
+                <div className="mt-1 hyphens-auto break-words font-semibold leading-tight" lang="ru">{t.title}</div>
                 <div className="mt-1 text-fgm">{done ? `✓ ${formatRuDate(done.date)}` : pending ? "⏳ на проверке" : "—"}</div>
               </div>
             );

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getActiveQuest, getLeaderboard, questDates } from "@/lib/quest";
 import { daysBetween, formatRuDate } from "@/lib/scoring/dates";
 import { BINGO_TASKS } from "@/lib/bingo";
+import type { DayInfo } from "@/lib/scoring";
 import { Invulnerable, Pumpkins, StreakBadge } from "@/components/pumpkins";
 
 export const dynamic = "force-dynamic";
@@ -66,7 +67,37 @@ export default async function Home() {
           <h2 className="font-bold">Таблица лидеров</h2>
           <span className="text-xs text-fgm">{rows.length} участников</span>
         </div>
-        <div className="overflow-x-auto">
+        <ul className="divide-y divide-line sm:hidden">
+          {rows.map((r) => {
+            const isMe = r.user.id === user?.id;
+            return (
+              <li key={r.user.id} className={`px-4 py-3 ${isMe ? "bg-accent-soft/40" : ""}`}>
+                <div className="flex items-center gap-2">
+                  <span className="w-6 shrink-0 text-center font-bold tabular-nums text-fgm">{medal(r.rank)}</span>
+                  <Link href={`/u/${r.user.id}`} className="flex min-w-0 flex-1 items-center gap-2 font-semibold">
+                    <span className="shrink-0 text-xl" aria-hidden>{r.user.avatarEmoji}</span>
+                    <span className="truncate">{r.user.name}</span>
+                    <Invulnerable until={r.score.invulnerableUntil} />
+                    {r.pendingCount > 0 && <span className="chip bg-warn-soft text-fg" title="Отчётов на проверке">⏳ {r.pendingCount}</span>}
+                  </Link>
+                  <span className="shrink-0 text-base"><Pumpkins n={r.score.total} /></span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 pl-8 text-xs text-fgm">
+                  <span className="whitespace-nowrap">Дни: <b className="tabular-nums text-fg">{r.score.activeDayCount}</b></span>
+                  <StreakBadge n={r.score.currentStreak} />
+                  <span className="whitespace-nowrap">Бинго: <b className="tabular-nums text-fg">{r.score.bingoCompleted.length}</b>/{BINGO_TASKS.length}</span>
+                  <span className="whitespace-nowrap">Шаги: <b className="tabular-nums text-fg">{r.score.totalSteps.toLocaleString("ru-RU")}</b></span>
+                  <WeekStrip week={weekCells(r.score.dayMap, today)} />
+                </div>
+              </li>
+            );
+          })}
+          {rows.length === 0 && (
+            <li className="px-4 py-8 text-center text-fgm">Пока никого нет. Организатор, добавь участников в админке.</li>
+          )}
+        </ul>
+
+        <div className="hidden overflow-x-auto sm:block">
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-fgm">
               <tr>
@@ -83,15 +114,9 @@ export default async function Home() {
             <tbody>
               {rows.map((r) => {
                 const isMe = r.user.id === user?.id;
-                const week = Array.from({ length: 7 }, (_, i) => {
-                  const d = shift(today, i - 6);
-                  return { d, cell: r.score.dayMap[d] };
-                });
                 return (
                   <tr key={r.user.id} className={`border-t border-line ${isMe ? "bg-accent-soft/40" : ""}`}>
-                    <td className="px-4 py-3 font-bold tabular-nums text-fgm">
-                      {r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : r.rank}
-                    </td>
+                    <td className="px-4 py-3 font-bold tabular-nums text-fgm">{medal(r.rank)}</td>
                     <td className="px-2 py-3">
                       <Link href={`/u/${r.user.id}`} className="flex items-center gap-2 font-semibold hover:underline">
                         <span className="text-xl" aria-hidden>{r.user.avatarEmoji}</span>
@@ -109,17 +134,7 @@ export default async function Home() {
                     </td>
                     <td className="px-2 py-3 text-right tabular-nums">{r.score.totalSteps.toLocaleString("ru-RU")}</td>
                     <td className="px-2 py-3">
-                      <div className="flex gap-0.5">
-                        {week.map(({ d, cell }) => (
-                          <span
-                            key={d}
-                            title={d}
-                            className={`h-3.5 w-3.5 rounded-sm ${
-                              cell?.active ? "bg-accent" : cell?.pending ? "bg-warn-soft" : "bg-muted"
-                            }`}
-                          />
-                        ))}
-                      </div>
+                      <WeekStrip week={weekCells(r.score.dayMap, today)} />
                     </td>
                   </tr>
                 );
@@ -139,4 +154,29 @@ function shift(d: string, n: number) {
   const t = new Date(d + "T00:00:00Z");
   t.setUTCDate(t.getUTCDate() + n);
   return t.toISOString().slice(0, 10);
+}
+
+function medal(rank: number) {
+  return rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : rank;
+}
+
+function weekCells(dayMap: Record<string, DayInfo>, today: string) {
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = shift(today, i - 6);
+    return { d, cell: dayMap[d] };
+  });
+}
+
+function WeekStrip({ week }: { week: { d: string; cell?: DayInfo }[] }) {
+  return (
+    <div className="flex shrink-0 gap-0.5">
+      {week.map(({ d, cell }) => (
+        <span
+          key={d}
+          title={d}
+          className={`h-3.5 w-3.5 rounded-sm ${cell?.active ? "bg-accent" : cell?.pending ? "bg-warn-soft" : "bg-muted"}`}
+        />
+      ))}
+    </div>
+  );
 }
