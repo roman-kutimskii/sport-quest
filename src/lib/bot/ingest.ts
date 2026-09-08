@@ -6,7 +6,6 @@
 import { z } from "zod";
 import { prisma, Prisma, ReportKind, ReportSource, ReportStatus, TelegramLinkStatus, type TelegramLink } from "@/lib/db";
 import { activityLabel, BINGO_KEYS, BINGO_TASKS } from "@/lib/bingo";
-import { awardCollab } from "@/lib/reports/collab";
 import { createReport } from "@/lib/reports/create";
 import { getActiveQuest, getUserBreakdown, questDates, type Quest } from "@/lib/quest";
 import { LIMITS, type BotConfig } from "./config";
@@ -17,7 +16,7 @@ import { buildAskKeyboard, buildSavedKeyboard } from "./keyboards";
 import type { LlmClient, RateLimiter } from "./llm";
 import { saveTelegramMedia, type LlmImage } from "./media";
 import { MessageSchema, isForwarded, mediaKinds, messageText, parseCommand, type TelegramApi, type TgMessage } from "./telegram-api";
-import { mentionLabel, renderReplyAsk, renderReplyDateError, renderReplySaved } from "./text";
+import { renderReplyAsk, renderReplyDateError, renderReplySaved } from "./text";
 
 export type Deps = { api: TelegramApi; llm: LlmClient; limiter: RateLimiter; cfg: BotConfig };
 
@@ -42,9 +41,6 @@ export const StoredExtractionSchema = ExtractionSchema.extend({
   bingoSaved: z.boolean().optional(),
   /** Users mentioned in the message (from entities), with the account they resolved to. */
   mentions: z.array(z.object({ ref: z.string(), name: z.string(), participant: z.boolean(), userId: z.string().nullable() })).default([]),
-  /** Set by saveFromExtraction: partners credited with «Спорт-коллаб» and those skipped (with the reason). */
-  collabAwarded: z.array(z.object({ userId: z.string(), label: z.string() })).optional(),
-  collabSkipped: z.array(z.object({ userId: z.string(), label: z.string(), error: z.string() })).optional(),
 });
 export type StoredExtraction = z.infer<typeof StoredExtractionSchema>;
 
@@ -168,7 +164,7 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
     where: { id: link.id },
     data: { extraction: toJson(stored), llmRaw: raw.slice(0, MAX_LLM_RAW), confidence: extraction.confidence },
   });
-  log(link.id, `llm: is_report=${extraction.is_report} conf=${extraction.confidence} → ${decision.action}/${decision.bingo}${extraction.collab_with.length ? ` collab_with=${extraction.collab_with.join(",")}` : ""} «${extraction.summary_ru}»`);
+  log(link.id, `llm: is_report=${extraction.is_report} conf=${extraction.confidence} → ${decision.action}/${decision.bingo} «${extraction.summary_ru}»`);
 
   if (decision.action === "skip") return finish(link.id, TelegramLinkStatus.SKIPPED, null);
 
@@ -236,20 +232,9 @@ export function renderSavedText(
     bingoSaved: saved ? { emoji: saved.emoji, title: saved.title } : null,
     bingoOffer: offer ? { emoji: offer.emoji, title: offer.title } : null,
     bingoNeedsPhoto: needs ? { title: needs.title } : null,
-    collabAwarded: e.collabAwarded?.map((c) => c.label) ?? [],
-    collabSkipped: e.collabSkipped?.map((c) => ({ label: c.label, error: c.error })) ?? [],
-    collabNotParticipants: e.bingo_key === "collab" ? e.mentions.filter((m) => !m.participant).map(mentionLabel) : [],
-    collabNoPhoto: !e.hasMedia && e.collab_with.length > 0,
     videoTooLarge: e.videoTooLarge,
     summary: e.summary_ru,
   });
-}
-
-/** Partners named in `collab_with` that resolved to an account. */
-export function collabPartners(e: StoredExtraction): { userId: string; label: string }[] {
-  return e.mentions
-    .filter((m) => m.userId && m.participant && e.collab_with.includes(m.ref))
-    .map((m) => ({ userId: m.userId!, label: mentionLabel(m) }));
 }
 
 export async function userScore(quest: Quest, userId: string): Promise<{ total: number; streak: number; bingoDone: number }> {
@@ -291,24 +276,6 @@ export async function saveFromExtraction(
   const dayAlreadyActive = res.existingActivity !== undefined;
   const bingoOffer = !bingoKey && decision.bingo === "offer" ? stored.bingo_key : null;
 
-  // «Спорт-коллаб» for the mentioned partners: independent of the author's own bingo, but the rules
-  // still require a photo. Never awarded twice for one link (a ✅ after «ask» goes through here once).
-  let collab: Pick<StoredExtraction, "collabAwarded" | "collabSkipped"> = {};
-  const partners = stored.collabAwarded ? [] : collabPartners(stored);
-  if (partners.length && stored.hasMedia) {
-    const results = await awardCollab({
-      quest, date: stored.resolvedDate, partnerIds: partners.map((p) => p.userId), comment: stored.text, proofUrls: stored.proofUrls,
-      source: ReportSource.TELEGRAM, linkId: link.id,
-    });
-    const label = (id: string) => partners.find((p) => p.userId === id)?.label ?? id;
-    collab = {
-      collabAwarded: results.filter((r) => r.ok).map((r) => ({ userId: r.userId, label: label(r.userId) })),
-      collabSkipped: results.filter((r) => !r.ok).map((r) => ({ userId: r.userId, label: label(r.userId), error: r.ok ? "" : r.error })),
-    };
-    log(link.id, `collab: awarded ${collab.collabAwarded!.length}, skipped ${collab.collabSkipped!.length}`);
-  }
-  stored = { ...stored, ...collab };
-
   const { total, streak } = await userScore(quest, userId);
   const text = renderSavedText(stored, {
     activityTypes, total, streak, dayAlreadyActive, bingoSaved: bingoKey, bingoOffer, bingoNeedsPhoto: decision.bingoNeedsPhotoNote,
@@ -329,6 +296,6 @@ export async function saveFromExtraction(
     where: { id: link.id },
     data: { status: TelegramLinkStatus.SAVED, replyMessageId, extraction: toJson(next), processedAt: new Date(), error: null },
   });
-  log(link.id, `SAVED ${res.created.length + (collab.collabAwarded?.length ?? 0)} report(s)${dayAlreadyActive ? " (day already active)" : ""}${bingoKey ? ` bingo=${bingoKey}` : ""}`);
+  log(link.id, `SAVED ${res.created.length} report(s)${dayAlreadyActive ? " (day already active)" : ""}${bingoKey ? ` bingo=${bingoKey}` : ""}`);
   return next;
 }

@@ -5,7 +5,7 @@ import { buildSystemPrompt, coerceExtraction, decide, extractReport, parseJsonLo
 
 const base: Extraction = {
   is_report: true, confidence: 0.9, date: null, activity_types: ["run"], steps: null,
-  bingo_key: null, bingo_explicit: false, bingo_confidence: 0, collab_with: [], summary_ru: "бег",
+  bingo_key: null, bingo_explicit: false, bingo_confidence: 0, summary_ru: "бег",
 };
 
 describe("coerceExtraction", () => {
@@ -134,22 +134,3 @@ describe("extractReport", () => {
   });
 });
 
-describe("collab_with", () => {
-  const mentions = [
-    { ref: "masha", name: "Маша", participant: true },
-    { ref: "tg42", name: "Петя", participant: true },
-    { ref: "stranger", name: "@stranger", participant: false },
-  ];
-  it("keeps only mentioned participants, normalised, and is independent of bingo_key", () => {
-    const e = coerceExtraction({ ...base, bingo_key: "night", bingo_confidence: 0.9, collab_with: ["@Masha", "tg42", "stranger", "ghost", "masha"] }, ["night", "collab"], mentions);
-    expect(e.collab_with).toEqual(["masha", "tg42"]);
-    expect(e.bingo_key).toBe("night");
-  });
-  it("defaults to [] when missing and tolerates a comma string", () => {
-    expect(coerceExtraction(base, []).collab_with).toEqual([]);
-    expect(coerceExtraction({ ...base, collab_with: "masha, tg42" }, [], mentions).collab_with).toEqual(["masha", "tg42"]);
-  });
-  it("is empty without mentions even if the LLM lists someone", () => {
-    expect(coerceExtraction({ ...base, collab_with: ["masha"] }, ["collab"]).collab_with).toEqual([]);
-  });
-});

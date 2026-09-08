@@ -69,7 +69,7 @@ Maximum +27 🎃.
 | `stairs` | 🪜 «Лифтофобия» — walk up to 7th+ floor | photo/track |
 | `zen` | 🧘‍♂️ «Уютный дзен» — yoga/stretching in warm socks or sweater | photo |
 | `tea` | ☕️ «Заслуженный чай» — thermos with hot drink after outdoor activity | photo |
-| `collab` | 👥 «Спорт-коллаб» — joint workout/walk with someone from the chat | photo |
+| `collab` | 👥 «Спорт-коллаб» — joint workout/walk with someone from the chat; credited to the reporting participant only, partners post their own report | photo |
 | `weight` | 🏋️ «Хардкор-утяжелитель» — workout with household weight | photo |
 | `early` | 🌅 «Ранняя пташка» — workout started before 07:30 | photo/track |
 

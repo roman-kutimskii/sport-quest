@@ -5,10 +5,9 @@ import { isVideoUrl } from "@/lib/media";
 import { ACTIVITY_TYPES, BINGO_TASKS } from "@/lib/bingo";
 import { submitReport, type LogState } from "./actions";
 
-type Participant = { id: string; name: string; avatarEmoji: string };
-type Props = { min: string; max: string; today: string; doneBingo: string[]; bingoDates: string[]; activeDays: string[]; participants: Participant[] };
+type Props = { min: string; max: string; today: string; doneBingo: string[]; bingoDates: string[]; activeDays: string[] };
 
-export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays, participants }: Props) {
+export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays }: Props) {
   const [state, action, pending] = useActionState<LogState, FormData>(submitReport, undefined);
   const [date, setDate] = useState(today);
   const [bingoKey, setBingoKey] = useState("");
@@ -16,8 +15,6 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays, pa
   const [activityTypes, setActivityTypes] = useState<string[]>([]);
   const toggleActivity = (key: string) => setActivityTypes((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
   const [picked, setPicked] = useState<{ name: string; preview: string | null }[]>([]);
-  const [partnerIds, setPartnerIds] = useState<string[]>([]);
-  const togglePartner = (id: string) => setPartnerIds((cur) => (cur.includes(id) ? cur.filter((k) => k !== id) : [...cur, id]));
 
   const dayHasBingo = bingoDates.includes(date);
   const dayActive = activeDays.includes(date);
@@ -76,32 +73,6 @@ export function LogForm({ min, max, today, doneBingo, bingoDates, activeDays, pa
         </div>
         <input type="hidden" name="bingoKey" value={bingoKey} />
         {bingoKey && <p className="text-xs text-fgm">{BINGO_TASKS.find((t) => t.key === bingoKey)?.description}</p>}
-        {bingoKey === "collab" && (
-          <div className="space-y-2">
-            <p className="label">С кем тренировались? <span className="font-normal text-fgm">— им тоже засчитается коллаб (+3 🎃)</span></p>
-            {participants.length === 0 ? (
-              <p className="text-xs text-fgm">Других участников пока нет.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {participants.map((u) => {
-                  const sel = partnerIds.includes(u.id);
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      aria-pressed={sel}
-                      onClick={() => togglePartner(u.id)}
-                      className={`rounded-full border px-3 py-1 text-xs transition ${sel ? "border-accent bg-accent-soft" : "border-line bg-elev hover:bg-muted"}`}
-                    >
-                      {u.avatarEmoji} {u.name}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {partnerIds.map((id) => <input key={id} type="hidden" name="partnerId" value={id} />)}
-          </div>
-        )}
         {dayHasBingo && <p className="text-xs text-fgm">На этот день бинго уже записано — по правилам одно задание в день.</p>}
       </fieldset>
       )}

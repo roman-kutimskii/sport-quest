@@ -25,8 +25,6 @@ export type EvalCase = {
     date?: string;
     bingo_key?: string | null;
     bingo_explicit?: boolean;
-    /** Refs of mentioned participants credited with the collab. */
-    collab_with?: string[];
   };
 };
 
@@ -77,15 +75,15 @@ export const EVAL_SET: EvalCase[] = [
   { text: "Пробежка в темноте с фонариком — ночной дозор 💡", mediaKinds: ["photo"], expect: { is_report: true, activity_types: ["run"], bingo_key: "night", bingo_explicit: true } },
   { text: "Тренировка с тыквой вместо гири 🎃", mediaKinds: ["photo"], expect: { is_report: true, bingo_key: "weight" } },
 
-  // mentions and «Спорт-коллаб» (see 5.2: collab_with may only contain mentioned participants)
-  { text: "Пробежали 5 км с @masha 🍂", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, band: "save", activity_types: ["run"], bingo_key: "collab", bingo_explicit: true, collab_with: ["masha"] } },
-  { text: "Зал с @masha и @petya, ноги", mediaKinds: ["photo"], mentions: [MASHA, PETYA], expect: { is_report: true, activity_types: ["gym"], bingo_key: "collab", bingo_explicit: true, collab_with: ["masha", "petya"] } },
-  { text: "Спасибо @masha за компанию на йоге 🧘", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, activity_types: ["yoga"], bingo_key: "collab", collab_with: ["masha"] } },
-  { text: "Прогулка с Петей, 11 000 шагов", mediaKinds: ["photo"], mentions: [PETYA_TEXT], expect: { is_report: true, activity_types: ["walk"], steps: 11000, bingo_key: "collab", collab_with: ["tg42"] } },
-  { text: "Бег 5 км. @masha, ты как, бегала сегодня?", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, activity_types: ["run"], bingo_key: null, collab_with: [] } },
+  // mentions and «Спорт-коллаб» (credited to the author only; a mentioned participant makes it explicit)
+  { text: "Пробежали 5 км с @masha 🍂", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, band: "save", activity_types: ["run"], bingo_key: "collab", bingo_explicit: true } },
+  { text: "Зал с @masha и @petya, ноги", mediaKinds: ["photo"], mentions: [MASHA, PETYA], expect: { is_report: true, activity_types: ["gym"], bingo_key: "collab", bingo_explicit: true } },
+  { text: "Спасибо @masha за компанию на йоге 🧘", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, activity_types: ["yoga"], bingo_key: "collab" } },
+  { text: "Прогулка с Петей, 11 000 шагов", mediaKinds: ["photo"], mentions: [PETYA_TEXT], expect: { is_report: true, activity_types: ["walk"], steps: 11000, bingo_key: "collab" } },
+  { text: "Бег 5 км. @masha, ты как, бегала сегодня?", mediaKinds: ["photo"], mentions: [MASHA], expect: { is_report: true, activity_types: ["run"], bingo_key: null } },
   { text: "@masha завтра идём в зал?", mentions: [MASHA], expect: { is_report: false } },
-  { text: "Пробежка с @stranger 6 км", mediaKinds: ["photo"], mentions: [STRANGER], expect: { is_report: true, activity_types: ["run"], bingo_key: "collab", bingo_explicit: false, collab_with: [] } },
-  { text: "Прогулка с женой по парку, 9 км", mediaKinds: ["photo"], expect: { is_report: true, activity_types: ["walk"], bingo_key: "collab", bingo_explicit: false, collab_with: [] } },
+  { text: "Пробежка с @stranger 6 км", mediaKinds: ["photo"], mentions: [STRANGER], expect: { is_report: true, activity_types: ["run"], bingo_key: "collab", bingo_explicit: false } },
+  { text: "Прогулка с женой по парку, 9 км", mediaKinds: ["photo"], expect: { is_report: true, activity_types: ["walk"], bingo_key: "collab", bingo_explicit: false } },
 
   // steps from an attached pedometer screenshot (rule 4b). The fixtures are screenshots of
   // 2026-09-07, so these cases run with that message date — see `messageDate`.

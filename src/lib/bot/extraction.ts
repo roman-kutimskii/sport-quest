@@ -16,15 +16,13 @@ export const ExtractionSchema = z.object({
   bingo_key: z.string().nullable(),
   bingo_explicit: z.boolean(),
   bingo_confidence: z.number().min(0).max(1),
-  /** `ref`s of mentioned participants who did the activity together with the author (subset of `PromptContext.mentions`). */
-  collab_with: z.array(z.string()).default([]),
   summary_ru: z.string().max(80),
 });
 export type Extraction = z.infer<typeof ExtractionSchema>;
 
 /** A user mentioned in the message (parsed from Telegram entities, never from free text). */
 export type Mention = {
-  /** Stable key the LLM echoes back in `collab_with`: the handle, or `tg<id>` for a text mention without username. */
+  /** Stable key for the mention: the handle, or `tg<id>` for a text mention without username. */
   ref: string;
   /** Display name for the prompt. */
   name: string;
@@ -47,8 +45,6 @@ function normalizeRaw(raw: unknown): unknown {
   if (typeof o.steps === "number" && !Number.isInteger(o.steps)) o.steps = Math.round(o.steps);
   for (const k of ["confidence", "bingo_confidence"]) if (typeof o[k] === "string" && o[k] !== "") o[k] = Number(o[k]);
   if (o.bingo_explicit === undefined) o.bingo_explicit = false;
-  if (o.collab_with === undefined || o.collab_with === null || nullish(o.collab_with)) o.collab_with = [];
-  else if (typeof o.collab_with === "string") o.collab_with = o.collab_with.split(/[,\s]+/);
   if (o.bingo_confidence === undefined) o.bingo_confidence = 0;
   if (o.summary_ru === undefined || o.summary_ru === null) o.summary_ru = "";
   if (typeof o.summary_ru === "string" && o.summary_ru.length > 80) o.summary_ru = o.summary_ru.slice(0, 80);
@@ -57,18 +53,14 @@ function normalizeRaw(raw: unknown): unknown {
 
 /**
  * Zod parse plus enum checks against code constants: unknown `activity_types` entries dropped; `bingo_key`
- * not among the author's open tasks → null (with `bingo_explicit=false`, `bingo_confidence=0`);
- * `collab_with` keeps only refs of mentioned *participants* (so the LLM cannot invent a partner); it is
- * independent of `bingo_key`, because partners are credited even when the author's collab is closed.
+ * not among the author's open tasks → null (with `bingo_explicit=false`, `bingo_confidence=0`).
  * Throws ZodError on structural failure.
  */
-export function coerceExtraction(raw: unknown, openBingoKeys: string[], mentions: Mention[] = []): Extraction {
+export function coerceExtraction(raw: unknown, openBingoKeys: string[]): Extraction {
   const e = ExtractionSchema.parse(normalizeRaw(raw));
   const activity_types = [...new Set(e.activity_types.map((a) => a.trim().toLowerCase()).filter((a) => ACTIVITY_TYPES.some((t) => t.key === a)))];
   const bingo = e.bingo_key?.trim().toLowerCase() ?? null;
   const bingoOk = bingo !== null && openBingoKeys.includes(bingo);
-  const participants = new Set(mentions.filter((m) => m.participant).map((m) => m.ref.toLowerCase()));
-  const collab_with = [...new Set(e.collab_with.map((r) => r.trim().replace(/^@/, "").toLowerCase()).filter((r) => participants.has(r)))];
   return {
     ...e,
     activity_types,
@@ -76,7 +68,6 @@ export function coerceExtraction(raw: unknown, openBingoKeys: string[], mentions
     bingo_key: bingoOk ? bingo : null,
     bingo_explicit: bingoOk ? e.bingo_explicit : false,
     bingo_confidence: bingoOk ? e.bingo_confidence : 0,
-    collab_with,
     summary_ru: e.summary_ru.trim(),
   };
 }
@@ -147,7 +138,6 @@ ${bingo}
   "bingo_key": string | null,  // ключ открытого задания бинго или null
   "bingo_explicit": boolean,   // автор сам НАЗВАЛ задание в тексте
   "bingo_confidence": number,  // 0..1 — уверенность, что задание выполнено
-  "collab_with": string[],     // ref-ы упомянутых участников, которые тренировались ВМЕСТЕ с автором; [] если таких нет
   "summary_ru": string         // краткое описание по-русски, до 80 символов
 }
 
@@ -162,7 +152,7 @@ ${bingo}
    НИКОГДА не считай шагами другие числа: килокалории (kcal, ккал), пульс (BPM), километры и метры, минуты и время тренировки, этажи, вес, проценты, заряд батареи, часы на экране. Скриншот тренировки (пульс, калории, длительность) шагов НЕ содержит — steps = null.
    Если явного числа шагов нет — null. Шаги могут быть отчётом сами по себе (activity_types может быть пустым).
 5. bingo_key: ставь только если содержание сообщения соответствует одному из открытых заданий. bingo_explicit = true только когда автор сам называет задание словами (название, ключевые слова: «лифтофобия», «7 этаж пешком», «бинго: ранняя пташка», «ночной дозор», «листопад», «термос»). Если задание лишь угадывается по фото — bingo_explicit = false и bingo_confidence отражает степень уверенности. Без фото/видео бинго не засчитывается, но поле всё равно заполняй.
-6. Упоминания и «Спорт-коллаб». В сообщении пользователя перечислены упомянутые люди (ref, имя, участник квеста или нет). Если автор делал активность ВМЕСТЕ с упомянутым участником квеста («пробежали 5 км с @masha», «спасибо @masha за компанию на йоге», «зал с @petya») — это бинго "collab": bingo_key = "collab", bingo_explicit = true, а в collab_with перечисли ref-ы этих участников (только из списка). Упоминание в другой роли — вопрос, обращение, планы, благодарность не за совместную тренировку («@masha, ты как?», «@masha завтра идём?») — collab_with = [] и коллаб не ставить. Совместная тренировка с человеком, который не участник квеста или назван без упоминания («с Машей», «с женой»), — bingo_key = "collab", но bingo_explicit = false (автор подтвердит кнопкой), collab_with = []. Если автор сам пишет «спорт-коллаб» — bingo_explicit = true как обычно. Если "collab" закрыто для автора или больше подходит другое задание — collab_with всё равно заполняй: партнёрам коллаб засчитывается независимо от автора.
+6. Упоминания и «Спорт-коллаб». В сообщении пользователя перечислены упомянутые люди (ref, имя, участник квеста или нет). Коллаб засчитывается ТОЛЬКО автору отчёта — партнёрам ничего не начисляется, поэтому список упомянутых нужен лишь для того, чтобы понять, была ли тренировка совместной. Если автор делал активность ВМЕСТЕ с упомянутым участником квеста («пробежали 5 км с @masha», «спасибо @masha за компанию на йоге», «зал с @petya») — bingo_key = "collab", bingo_explicit = true. Упоминание в другой роли — вопрос, обращение, планы, благодарность не за совместную тренировку («@masha, ты как?», «@masha завтра идём?») — коллаб не ставить. Совместная тренировка с человеком, который не участник квеста или назван без упоминания («с Машей», «с женой»), — bingo_key = "collab", но bingo_explicit = false (автор подтвердит кнопкой). Если автор сам пишет «спорт-коллаб» — bingo_explicit = true как обычно.
 7. summary_ru: короткая фраза вида «бег 5 км в парке», «зал, ноги», «12 000 шагов». Для не-отчёта — «не отчёт» или краткая суть.
 8. Если сообщение переслано (forwarded) — is_report = false.`;
 }
@@ -197,7 +187,7 @@ export async function extractReport(llm: LlmClient, ctx: PromptContext, images: 
   for (let attempt = 0; attempt < 2; attempt++) {
     const { text } = await llm.complete({ system, user: parts, json: true });
     try {
-      return { extraction: coerceExtraction(parseJsonLoose(text), ctx.openBingoKeys, ctx.mentions ?? []), raw: text };
+      return { extraction: coerceExtraction(parseJsonLoose(text), ctx.openBingoKeys), raw: text };
     } catch (e) {
       lastError = e;
       parts = [

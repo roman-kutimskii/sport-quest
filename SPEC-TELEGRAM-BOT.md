@@ -62,19 +62,13 @@ Media handling:
   buffered for 3 seconds and processed as one report.
 - Forwarded messages are never treated as reports.
 
-«Спорт-коллаб» for everyone **[decided]**: when the report mentions other quest participants as
-training partners (`@username` or a text mention of a user without a username), the collab bingo is
-credited to each mentioned participant as well as the author. Mentions are parsed from Telegram
-`entities` (never from free text) and matched to existing active accounts by handle / Telegram id;
-no account is created from a bare handle. The LLM only decides whether the mentioned people took
-part in the activity (`collab_with`) — a mention in another role («@masha, завтра в зал?») credits
-nobody. Partners without an account, or named without an @, are not credited; the bot then treats
-the collab as an inferred bingo for the author (offer button) rather than an explicit one. Partners
-get a BINGO report with the same proof files and `linkId`, created through one shared domain function
-(`src/lib/reports/collab.ts`) that the website form uses too. No confirmation from the partner: a
-wrong credit is +3, visible in the chat, undone from the admin page (which deletes every report
-of the link, partners' included) or by the partner deleting the report on the site. A partner whose
-collab is already closed, or who already has a bingo that day, is skipped and named in the reply.
+«Спорт-коллаб» is credited to one person only **[decided, rules updated 2026-09-08]**: the author of
+the report. Partners are never given a report of their own — each of them closes the task with their
+own post. Mentions are still parsed from Telegram `entities` (never from free text) and passed to the
+LLM, but only to tell a joint workout from an ordinary mention: training together with a mentioned
+quest participant («пробежали 5 км с @masha») makes the collab explicit and it is saved right away,
+while a partner named without an @ or outside the quest («с Машей», «с женой») makes it an inferred
+bingo the author confirms with the button.
 
 Text-only posts («12 000 шагов», «сегодня зал») are saved as reports without proof **[decided]**.
 Bingo from a text-only post is never auto-saved (rules require a photo); the reply says so.
@@ -356,10 +350,8 @@ Extract the body of `submitReport` (validation, bingo uniqueness, transaction) i
 `src/lib/reports/create.ts` so the bot and the form share one implementation. `submitReport`
 additionally enqueues `Outbox(REPORT_CREATED)` for `source = WEB`.
 
-`src/lib/reports/collab.ts` — `awardCollab`: one BINGO(`collab`) report per partner with the same
-date, proof files, source and `linkId`; per-partner failures (already closed, another bingo that day)
-are returned, not thrown. Called from the bot (explicit collab save and the «Да, бинго» button) and
-from the website form, which shows a participant multi-select when «Спорт-коллаб» is chosen.
+«Спорт-коллаб» needs nothing extra here: it is an ordinary bingo of the author's own report, on both
+the bot and the website form.
 
 ### 7.2 Admin page additions
 - «Бот»: last 100 `TelegramLink` rows with status, sender, extraction summary, error; buttons:

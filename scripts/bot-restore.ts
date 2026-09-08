@@ -62,10 +62,7 @@ async function main() {
   // Clear whatever an interrupted run left behind, so the re-file cannot double-count.
   if (orphans) await undoLink(link.id);
 
-  // The collab awards were deleted with everything else, so let saveFromExtraction grant them again.
-  const next = await saveFromExtraction(deps, link, { ...stored, collabAwarded: undefined, collabSkipped: undefined }, {
-    editMessageId: link.replyMessageId,
-  });
+  const next = await saveFromExtraction(deps, link, stored, { editMessageId: link.replyMessageId });
   console.log(`restored: ${next.savedActivityTypes?.join("+") || "—"}${next.bingoSaved ? " + бинго" : ""}`);
 }
 

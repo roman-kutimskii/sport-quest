@@ -1,5 +1,4 @@
 import { requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/db";
 import { getActiveQuest, getUserBreakdown, questDates } from "@/lib/quest";
 import { LogForm } from "./log-form";
 
@@ -14,10 +13,6 @@ export default async function LogPage() {
   const pendingBingo = data?.reports.filter((r) => r.kind === "BINGO" && r.status === "PENDING").map((r) => r.bingoKey!) ?? [];
   const bingoDates = data?.reports.filter((r) => r.kind === "BINGO" && r.status !== "REJECTED").map((r) => r.date.toISOString().slice(0, 10)) ?? [];
   const activeDays = data?.score.activeDays ?? [];
-  // Partners selectable for «Спорт-коллаб»: every active participant except the author.
-  const participants = await prisma.user.findMany({
-    where: { isActive: true, id: { not: user.id } }, select: { id: true, name: true, avatarEmoji: true }, orderBy: { name: "asc" },
-  });
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -32,7 +27,6 @@ export default async function LogPage() {
         doneBingo={[...doneBingo, ...pendingBingo]}
         bingoDates={bingoDates}
         activeDays={activeDays}
-        participants={participants}
       />
     </div>
   );
