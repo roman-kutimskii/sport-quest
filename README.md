@@ -72,10 +72,43 @@ npm run bot:replay-shadow                                # при переход
 Разово на сервере: установить Docker, создать `/opt/sport-quest/.env.prod` по образцу `.env.prod.example`
 (сгенерировать `POSTGRES_PASSWORD` и `SESSION_SECRET` через `openssl rand -hex 32`).
 
-Каждый деплой с ноутбука (хост — аргумент или `DEPLOY_HOST`):
+### Деплой идёт сам: push в `main` → прод
+
+**Отдельного шага «выкатить» нет.** Любой коммит в `main` запускает
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml), и через ~2–3 минуты изменения уже на
+tl-sport.ru. `check` и `build` идут параллельно, `deploy` ждёт обоих (`needs: [check, build]`):
+
+1. **check** — `npm ci`, `prisma generate`, `npm run lint`, `npm test`. `DATABASE_URL` здесь фиктивный:
+   он нужен только чтобы резолвился `prisma.config.ts`, к базе никто не подключается.
+   Красные тесты останавливают деплой.
+2. **build** — два образа в GHCR из одного `Dockerfile`: стадия `runner` → `:<sha>` и `:latest`
+   (само приложение), стадия `build` → `:<sha>-tools` и `:latest-tools` (полный исходник с `tsx` и
+   Prisma CLI — на нём работают бот и разовые команды). Слои кешируются через `type=gha`.
+3. **deploy** — окружение `production`: поднимает SSH-ключ из секретов и вызывает тот же `./deploy.sh`
+   с `IMAGE_TAG=<sha>`. `concurrency: deploy-production` без `cancel-in-progress` — два деплоя никогда
+   не идут внахлёст, следующий ждёт в очереди.
+
+Секреты репозитория: `DEPLOY_HOST` (`root@<vps>`), `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
+
+Что делает сам `deploy.sh` (он одинаковый для CI и для ручного запуска): rsync'ит на сервер только
+`compose.prod.yml`, `Caddyfile` и себя → дописывает `IMAGE_TAG` в `.env.prod` (чтобы ручной
+`docker compose up -d` на сервере поднял те же образы, а не случайный `latest`) → `pull` → `up -d
+--remove-orphans` → **`prisma migrate deploy`** → чистит старые образы и кеш билдера.
+То есть миграции применяются на каждом деплое автоматически.
+
+Ручной запуск нужен в трёх случаях:
+
 ```bash
-DEPLOY_HOST=root@<vps> ./deploy.sh   # rsync → docker compose pull → up -d → prisma migrate deploy
+# 1. Откатиться на прошлый образ (тег = SHA любого зелёного коммита)
+IMAGE_TAG=<sha> DEPLOY_HOST=root@<vps> ./deploy.sh
+
+# 2. Передеплоить без нового коммита — вкладка Actions → Deploy → Run workflow (workflow_dispatch)
+
+# 3. Выкатить с ноутбука в обход CI (если GitHub лежит); соберёт НЕ ваш код, а :latest из GHCR
+DEPLOY_HOST=root@<vps> ./deploy.sh
 ```
+
+Статус выкатки: `gh run list --workflow=deploy.yml` или `gh run watch`.
 
 Первый запуск — создать квест и админа (без тестовых участников):
 ```bash
