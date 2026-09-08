@@ -97,18 +97,25 @@ export async function undoTelegramLink(formData: FormData) {
   const { undoLink } = await import("@/lib/bot/undo");
   const res = await undoLink(id);
   if (!res) return;
-  if (res.link.replyMessageId) {
-    // The worker edits the bot's reply to «Отменено» and removes the buttons.
-    await prisma.outbox.create({
-      data: {
-        kind: "TEXT",
-        chatId: res.link.chatId,
-        threadId: res.link.threadId,
-        payload: { text: "Отменено", editMessageId: res.link.replyMessageId },
-        dedupeKey: `undo:${res.link.id}`,
-      },
-    }).catch(() => undefined);
-  }
+  // The bot acknowledged the message either with a reply (edit it to «Отменено» and drop the
+  // buttons) or with a reaction (clear it) — otherwise the group still shows the report as counted.
+  await prisma.outbox.create({
+    data: res.link.replyMessageId
+      ? {
+          kind: "TEXT",
+          chatId: res.link.chatId,
+          threadId: res.link.threadId,
+          payload: { text: "Отменено", editMessageId: res.link.replyMessageId },
+          dedupeKey: `undo:${res.link.id}`,
+        }
+      : {
+          kind: "REACTION",
+          chatId: res.link.chatId,
+          threadId: res.link.threadId,
+          payload: { messageId: res.link.messageId, emoji: null },
+          dedupeKey: `undo:${res.link.id}`,
+        },
+  }).catch(() => undefined);
   refreshAll(res.userId ?? undefined);
 }
 

@@ -1,6 +1,7 @@
 /**
  * Ingestion pipeline for one RECEIVED TelegramLink (spec §2.1 / §5): link the sender, download
- * media, ask the LLM, decide, and either save reports + reply, ask «Это отчёт?», or skip.
+ * media, ask the LLM, decide, and either save reports (acknowledged with a reaction, or a reply
+ * when there is something to say) or skip.
  * `saveFromExtraction` is shared with the ✅ callback so a deferred save uses the same code.
  */
 import { z } from "zod";
@@ -8,13 +9,14 @@ import { prisma, Prisma, ReportKind, ReportSource, ReportStatus, TelegramLinkSta
 import { activityLabel, BINGO_KEYS, BINGO_TASKS } from "@/lib/bingo";
 import { createReport } from "@/lib/reports/create";
 import { getActiveQuest, getUserBreakdown, questDates, type Quest } from "@/lib/quest";
-import { LIMITS, type BotConfig } from "./config";
+import { LIMITS, REACTIONS, type BotConfig } from "./config";
 import { dateInTz, timeInTz } from "./dates";
 import { ExtractionSchema, decide, extractReport, resolveDate, type Extraction } from "./extraction";
 import { displayName, findLinkedUser, linkSender, resolveMentions } from "./identity";
 import { buildAskKeyboard, buildSavedKeyboard } from "./keyboards";
 import type { LlmClient, RateLimiter } from "./llm";
 import { saveTelegramMedia, type LlmImage } from "./media";
+import { decideAck } from "./reactions";
 import { MessageSchema, isForwarded, mediaKinds, messageText, parseCommand, type TelegramApi, type TgMessage } from "./telegram-api";
 import { renderReplyAsk, renderReplyDateError, renderReplySaved } from "./text";
 
@@ -276,19 +278,32 @@ export async function saveFromExtraction(
   const dayAlreadyActive = res.existingActivity !== undefined;
   const bingoOffer = !bingoKey && decision.bingo === "offer" ? stored.bingo_key : null;
 
-  const { total, streak } = await userScore(quest, userId);
-  const text = renderSavedText(stored, {
-    activityTypes, total, streak, dayAlreadyActive, bingoSaved: bingoKey, bingoOffer, bingoNeedsPhoto: decision.bingoNeedsPhotoNote,
-  });
-  const replyMarkup = buildSavedKeyboard({ linkId: link.id, userId, publicUrl: deps.cfg.publicUrl, offerBingo: bingoOffer !== null });
+  const ack = decideAck(
+    { dayAlreadyActive, bingoOffer: bingoOffer !== null, bingoNeedsPhoto: decision.bingoNeedsPhotoNote, videoTooLarge: stored.videoTooLarge },
+    REACTIONS,
+  );
 
-  let replyMessageId: number;
-  if (opts.editMessageId) {
-    await deps.api.editMessageText({ chatId: link.chatId, messageId: opts.editMessageId, text, replyMarkup });
-    replyMessageId = opts.editMessageId;
+  // The ordinary case says everything with a reaction on the author's own message; a reply is sent
+  // only when it carries a button or an explanation. `editMessageId` (an answered «Это отчёт?»)
+  // always edits: that message is already in the chat and would otherwise be left hanging.
+  let replyMessageId: number | null = null;
+  if (ack.kind === "reaction" && !opts.editMessageId) {
+    await deps.api
+      .setMessageReaction({ chatId: link.chatId, messageId: link.messageId, emoji: ack.emoji })
+      .catch((e) => log(link.id, `reaction ${ack.emoji} rejected (report is saved): ${errorMessage(e)}`));
   } else {
-    const sent = await deps.api.sendMessage({ chatId: link.chatId, text, threadId: link.threadId, replyTo: link.messageId, replyMarkup });
-    replyMessageId = sent.message_id;
+    const { total, streak } = await userScore(quest, userId);
+    const text = renderSavedText(stored, {
+      activityTypes, total, streak, dayAlreadyActive, bingoSaved: bingoKey, bingoOffer, bingoNeedsPhoto: decision.bingoNeedsPhotoNote,
+    });
+    const replyMarkup = buildSavedKeyboard({ linkId: link.id, userId, publicUrl: deps.cfg.publicUrl, offerBingo: bingoOffer !== null });
+    if (opts.editMessageId) {
+      await deps.api.editMessageText({ chatId: link.chatId, messageId: opts.editMessageId, text, replyMarkup });
+      replyMessageId = opts.editMessageId;
+    } else {
+      const sent = await deps.api.sendMessage({ chatId: link.chatId, text, threadId: link.threadId, replyTo: link.messageId, replyMarkup });
+      replyMessageId = sent.message_id;
+    }
   }
 
   const next: StoredExtraction = { ...stored, savedActivityTypes: activityTypes, dayAlreadyActive, bingoSaved: bingoKey !== null };

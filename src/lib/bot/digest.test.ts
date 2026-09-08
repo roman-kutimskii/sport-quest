@@ -114,6 +114,7 @@ describe("renderDigest", () => {
     expect(s).toContain("1. Боря — 35 000");
     expect(s).toContain("👥 2 из 4 участников отметились на этой неделе");
     expect(s).toContain("💬 Комментарий недели: Аня, ты машина!");
+    expect(s).not.toContain("📊 Таблица");
     expect(s).not.toContain("Гриша");
   });
 
@@ -125,6 +126,12 @@ describe("renderDigest", () => {
     expect(s.match(/пока пусто/g)?.length).toBe(4);
     expect(s).toContain("👥 0 из 2 участников отметились на этой неделе");
     expect(s).not.toContain("Комментарий недели");
+  });
+
+  it("appends the site link when one is given", () => {
+    const d = computeDigest({ ...base, users: [] });
+    expect(renderDigest(d, { siteUrl: "https://tl-sport.ru" })).toContain("📊 Таблица, бинго и профиль: https://tl-sport.ru");
+    expect(renderDigest(d, { siteUrl: "  " })).not.toContain("📊 Таблица");
   });
 
   it("no users at all", () => {

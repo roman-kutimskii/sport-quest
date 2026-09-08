@@ -12,38 +12,8 @@ vi.mock("@/lib/db", () => {
   return { prisma: { outbox: { create } }, Prisma: { PrismaClientKnownRequestError } };
 });
 
-const { enqueueDigest, enqueueText, groupAnnouncements } = await import("./outbox");
+const { enqueueDigest, enqueueText } = await import("./outbox");
 const { Prisma } = await import("@/lib/db");
-
-const row = (id: string, sec: number, userId: string, reportIds: string[] = [id]) => ({
-  id,
-  createdAt: new Date(1_700_000_000_000 + sec * 1000),
-  payload: { userId, reportIds },
-});
-
-describe("groupAnnouncements", () => {
-  it("merges same user within the window, measured from the group's first row", () => {
-    const g = groupAnnouncements([row("a", 0, "u1"), row("b", 30, "u1"), row("c", 59, "u1"), row("d", 61, "u1")], 60);
-    expect(g).toEqual([
-      { rowIds: ["a", "b", "c"], userId: "u1", reportIds: ["a", "b", "c"] },
-      { rowIds: ["d"], userId: "u1", reportIds: ["d"] },
-    ]);
-  });
-
-  it("does not merge different users or after a gap", () => {
-    const g = groupAnnouncements([row("a", 0, "u1"), row("b", 10, "u2"), row("c", 100, "u1")], 60);
-    expect(g.map((x) => x.rowIds)).toEqual([["a"], ["b"], ["c"]]);
-  });
-
-  it("sorts by createdAt and concatenates reportIds", () => {
-    const g = groupAnnouncements([row("b", 20, "u1", ["r2", "r3"]), row("a", 0, "u1", ["r1"])], 60);
-    expect(g).toEqual([{ rowIds: ["a", "b"], userId: "u1", reportIds: ["r1", "r2", "r3"] }]);
-  });
-
-  it("empty input", () => {
-    expect(groupAnnouncements([], 60)).toEqual([]);
-  });
-});
 
 describe("enqueue helpers", () => {
   beforeEach(() => create.mockReset());

@@ -47,11 +47,12 @@ describe("parseJsonLoose", () => {
 });
 
 describe("decide", () => {
+  // THRESHOLDS.ask == THRESHOLDS.save, so there is no «Это отчёт?» band: a message either saves
+  // or is passed over in silence. The band comes back the moment `ask` is lowered again.
   it("bands by confidence", () => {
     expect(decide({ ...base, confidence: 0.75 }, { hasMedia: false }).action).toBe("save");
-    expect(decide({ ...base, confidence: 0.74 }, { hasMedia: false }).action).toBe("ask");
-    expect(decide({ ...base, confidence: 0.45 }, { hasMedia: false }).action).toBe("ask");
-    expect(decide({ ...base, confidence: 0.44 }, { hasMedia: false }).action).toBe("skip");
+    expect(decide({ ...base, confidence: 0.74 }, { hasMedia: false }).action).toBe("skip");
+    expect(decide({ ...base, confidence: 0.45 }, { hasMedia: false }).action).toBe("skip");
     expect(decide({ ...base, is_report: false, confidence: 0.99 }, { hasMedia: true }).action).toBe("skip");
   });
 

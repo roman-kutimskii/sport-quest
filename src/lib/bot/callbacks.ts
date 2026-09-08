@@ -58,8 +58,11 @@ export async function handleCallback(deps: Deps, cq: TgCallbackQuery): Promise<v
 async function onUndo(deps: Deps, link: TelegramLink): Promise<void> {
   if (link.status !== TelegramLinkStatus.SAVED) return;
   await undoLink(link.id);
+  // Whatever acknowledged the save has to go: the reply becomes «Отменено», a reaction is cleared.
   if (link.replyMessageId) {
     await deps.api.editMessageText({ chatId: link.chatId, messageId: link.replyMessageId, text: renderReplyUndone(), replyMarkup: null });
+  } else {
+    await deps.api.setMessageReaction({ chatId: link.chatId, messageId: link.messageId, emoji: null }).catch(() => undefined);
   }
   log(`${link.id} undone`);
 }

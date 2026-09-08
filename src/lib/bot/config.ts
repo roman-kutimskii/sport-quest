@@ -41,8 +41,22 @@ export const botConfig = () => ({
 
 export type BotConfig = ReturnType<typeof botConfig>;
 
-/** Decision thresholds (spec §5.3). Tuned against the eval set. */
-export const THRESHOLDS = { save: 0.75, ask: 0.45, bingoExplicit: 0.75, bingoOffer: 0.5 } as const;
+/**
+ * Decision thresholds (spec §5.3). Tuned against the eval set.
+ *
+ * `ask` equals `save`, so the «Это отчёт?» band is empty and the bot never spends a group message
+ * on a question: above the line it saves, below it stays quiet. The eval set justifies this — the
+ * model puts every real report at ≥ 0.85 and every non-report at ≤ 0.15, so the old 0.45–0.75 band
+ * caught nothing. Lower this number to bring the question back.
+ */
+export const THRESHOLDS = { save: 0.75, ask: 0.75, bingoExplicit: 0.75, bingoOffer: 0.5 } as const;
+
+/**
+ * Emoji the bot reacts with instead of replying (spec §2.1). Must come from Telegram's own reaction
+ * set — 🎃 is not in it, so the quest's currency cannot be used here — and the group's admins may
+ * narrow that set further; a rejected reaction is logged and the report is saved regardless.
+ */
+export const REACTIONS = { saved: "🔥", alreadyCounted: "👌" } as const;
 
 export const LIMITS = {
   llmPerMinute: 20,
@@ -51,6 +65,5 @@ export const LIMITS = {
   maxPhotos: 3,
   albumBufferMs: 3000,
   askExpiryHours: 24,
-  announceMergeSeconds: 60,
   videoMaxBytes: 20 * 1024 * 1024,
 } as const;

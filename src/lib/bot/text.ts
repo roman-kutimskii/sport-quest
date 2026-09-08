@@ -85,52 +85,6 @@ export function renderReplyDateError(kind: "future" | "outside"): string {
     : "🗓 Эта дата вне квеста — записать не получится.";
 }
 
-export type AnnouncementItem = {
-  kind: "ACTIVITY" | "BINGO" | "STEPS";
-  activityTitle?: string | null;
-  activityEmoji?: string | null;
-  bingoTitle?: string | null;
-  bingoEmoji?: string | null;
-  steps?: number | null;
-};
-
-/**
- * One line per website report (or a merged group of them), gender-neutral:
- * "🧘 Маша: йога за 3 сен · 12 🎃 · стрик 3 🔥"
- * "🪜 Петя: бинго «Лифтофобия» (5/9) · 20 🎃"
- */
-export function renderAnnouncement(p: {
-  name: string;
-  items: AnnouncementItem[];
-  date: string;
-  total: number;
-  streak: number;
-  bingoDone?: number;
-}): string {
-  const date = fmtDateShort(p.date);
-  const what: string[] = [];
-  let emoji: string | null = null;
-  let steps: number | null = null;
-  for (const it of p.items) {
-    if (it.kind === "ACTIVITY") {
-      emoji ??= it.activityEmoji ?? null;
-      if (it.activityTitle) what.push(lower(it.activityTitle));
-    } else if (it.kind === "BINGO") {
-      emoji ??= it.bingoEmoji ?? "🎯";
-      const n = p.bingoDone != null ? ` (${p.bingoDone}/9)` : "";
-      what.push(`бинго «${it.bingoTitle ?? "?"}»${n}`);
-    }
-    if (it.steps) steps = Math.max(steps ?? 0, it.steps);
-  }
-  if (!what.length && steps) {
-    emoji ??= "🚶";
-    what.push(`${fmtSteps(steps)} шагов`);
-    steps = null;
-  }
-  const head = `${emoji ?? "✅"} ${p.name}: ${what.join(" + ") || "отчёт"} за ${date}`;
-  return join([head, steps ? `${fmtSteps(steps)} шагов` : null, `${p.total} 🎃`, streakPart(p.streak)]);
-}
-
 export function renderMe(p: {
   name: string;
   total: number;
@@ -158,8 +112,9 @@ export function renderHelp(siteUrl?: string): string {
   const site = siteUrl ?? "https://tl-sport.ru";
   return (
     "Я записываю отчёты из постов в группе: напиши про тренировку (например «утром бег, 12 000 шагов»), " +
-    "можно с фото или видео — я занесу активность за нужный день и отвечу в ветке. " +
-    "Если что-то не так — поправить детали можно на сайте. " +
+    "можно с фото или видео — я занесу активность за нужный день. " +
+    "Чтобы не засорять чат, обычный зачёт я отмечаю реакцией на твоём сообщении: 🔥 — записал, 👌 — день уже был засчитан. " +
+    "Отвечаю сообщением, только если нужно что-то уточнить. Если что-то не так — поправить детали можно на сайте. " +
     "/me — твой счёт, /top — топ-10, /help — это сообщение. " +
     `Таблица, бинго и профиль: ${site}`
   );

@@ -40,9 +40,12 @@ enum TelegramLinkStatus {
 }
 
 enum OutboxKind {
+  /// No longer produced: website reports are not announced any more. Kept so the historical rows stay readable.
   REPORT_CREATED
   DIGEST
   TEXT
+  /// Set or clear a reaction on a group message; payload { messageId, emoji } (emoji null clears).
+  REACTION
 }
 
 enum OutboxStatus {

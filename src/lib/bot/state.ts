@@ -6,6 +6,8 @@ export const STATE_KEYS = {
   lastPoll: "health.lastPollAt",
   lastDigest: "digest.lastPeriod",
   botUsername: "bot.username",
+  /** Telegram user ids already told the bot only works in the group (told once, not per message). */
+  privateNoticeSent: "private.noticeSent",
 } as const;
 
 export async function getState<T>(key: string): Promise<T | null> {

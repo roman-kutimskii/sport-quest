@@ -127,12 +127,6 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
         },
       }));
     }
-    if (source === ReportSource.WEB && out.length) {
-      // The bot announces website reports in the group; bot-created ones already got an in-thread reply.
-      await tx.outbox.create({
-        data: { kind: "REPORT_CREATED", payload: { userId, reportIds: out.map((r) => r.id) }, dedupeKey: `report:${out[0].id}` },
-      });
-    }
     return out;
   });
 

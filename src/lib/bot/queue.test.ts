@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { announcementReady, pickEligible, weekFromPeriodKey, zonedTimeToUtc } from "./queue";
+import { pickEligible, weekFromPeriodKey, zonedTimeToUtc } from "./queue";
 
 const T0 = 1_700_000_000_000;
 const row = (id: string, author: string, ageSec: number) => ({ id, fromUserId: author, createdAt: new Date(T0 - ageSec * 1000) });
@@ -29,14 +29,6 @@ describe("pickEligible", () => {
 
   it("returns nothing when there is no capacity", () => {
     expect(pickEligible([row("a", "u1", 30)], { ...base, capacity: 0 })).toEqual([]);
-  });
-});
-
-describe("announcementReady", () => {
-  it("waits until the first row is mergeSeconds old", () => {
-    expect(announcementReady(new Date(T0 - 59_000), now, 60)).toBe(false);
-    expect(announcementReady(new Date(T0 - 60_000), now, 60)).toBe(true);
-    expect(announcementReady(new Date(T0 - 3_600_000), now, 60)).toBe(true);
   });
 });
 

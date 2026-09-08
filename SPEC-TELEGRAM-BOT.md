@@ -2,7 +2,8 @@
 
 Companion to [SPEC.md](SPEC.md). Adds a Telegram bot that lives in the participants' group chat,
 turns their ordinary posts («пробежал 5 км 🍂» + photo) into reports on tl-sport.ru using an LLM,
-announces reports made on the website, and posts a weekly digest.
+and posts a weekly digest. It keeps quiet while doing it: an ordinary save is acknowledged with a
+reaction on the author's own message, not with a reply (see 2.1).
 
 Decisions taken with the organizer on 2026-09-04 are marked **[decided]**. Defaults I chose without
 asking are collected in section 12.
@@ -47,11 +48,24 @@ buttons **[decided]**:
   alone, the reply offers a one-tap button; nothing bingo-related is stored until it's pressed.
   Rationale: bingo is worth +3 and once-per-quest, so a wrong guess costs more than one tap.
 - **Undo** deletes everything the bot created from that message. Only the author or an admin can
-  press it. After undo the reply is edited to «Отменено» and buttons are removed.
+  press it. After undo the reply is edited to «Отменено» and buttons are removed; when the save was
+  acknowledged with a reaction instead, that reaction is cleared (`Outbox(REACTION)` when the admin
+  page triggers it, since the web app never calls Telegram itself).
 - **Fix on site** is a URL button to the author's profile page.
-- Medium-confidence messages (see 5.3) get a question instead of a save:
-  «Это отчёт о тренировке? [ ✅ Да ] [ ❌ Нет ]». Nothing is stored until ✅. The question
-  self-deletes after 24 h if unanswered.
+
+**Reactions instead of replies.** The reply above is sent only when it carries something the author
+must act on: a bingo offer (it needs the button), a bingo that wants a photo, or a video that was
+too large. The ordinary save — activity and/or steps, nothing to decide — is acknowledged with a
+reaction on the author's own message: 🔥 when the report scored, 👌 when the day was already
+counted. No message, no notification, nothing to scroll past. The running score moved to `/me` and
+the weekly digest, which also carries the site link.
+
+The reaction emoji must come from Telegram's own reaction set, so 🎃 cannot be used, and a group's
+admins can narrow that set further; a rejected reaction is logged and the report is saved anyway.
+
+There is no «Это отчёт о тренировке?» question any more: `THRESHOLDS.ask` equals `THRESHOLDS.save`,
+so the middle band is empty (see 5.3). The handling code stays in place for rows already in that
+state and for the day the band is reopened.
 
 Media handling:
 - Photos and videos become proof files exactly as website uploads do (stored under `UPLOAD_DIR`,
@@ -103,18 +117,12 @@ The bot links the Telegram sender to a website account by numeric Telegram user 
 @username, and otherwise creates a participant from the Telegram profile (same as OIDC login
 does). See 6.1 for the identity fix this requires.
 
-### 2.3 Announcing website reports **[decided]**
+### 2.3 Announcing website reports **[removed]**
 
-When a report is created on the website, the bot posts one line to the group:
-
-```
-🧘 Маша записала йогу за 3 сен · 12 🎃 · стрик 3 🔥
-🪜 Петя закрыл бинго «Лифтофобия» (5/9) · 20 🎃
-```
-
-- Bot-created reports are not announced (the in-thread reply already did).
-- Reports created within the same 60 s by the same user are merged into one line.
-- Deleting or rejecting a report is not announced (v1).
+The bot used to post one line to the group for every report made on the website. That was the
+loudest thing it did and reactions cannot quieten it — there is no group message to react to — so
+website reports are now silent. `Outbox.REPORT_CREATED` is no longer produced; the enum value is
+kept so historical rows stay readable. Website activity surfaces in the weekly digest.
 
 ### 2.4 Weekly digest **[decided: Sunday 20:00 Moscow]**
 
@@ -185,11 +193,11 @@ Telegram ──(proxy)── bot worker ──── Postgres ──── Next.
      run here;
   3. **message queue**: stored messages are processed by a separate loop with up to 3 LLM calls in
      flight, ordered per author so two posts from one person can't race the duplicate rules;
-  4. drain the `Outbox` table every 3 s (website announcements, digest, deferred replies);
+  4. drain the `Outbox` table every 3 s (digest, deferred replies);
   5. scheduler tick every 60 s: album buffers, weekly digest, expiring questions.
-- **Web app** never calls Telegram or the LLM. `submitReport` writes an `Outbox` row of kind
-  `REPORT_CREATED`; the worker renders and sends it. This keeps the web request fast, survives
-  bot downtime (rows wait), and makes announcements retryable and idempotent.
+- **Web app** never calls Telegram or the LLM. It writes nothing to `Outbox` any more (website
+  reports are not announced — see 2.3); the table still carries the digest and deferred replies,
+  which survive bot downtime (rows wait) and stay retryable and idempotent.
 - **Shared code** lives in `src/lib/bot/` and is imported by both the worker and the web app:
   Telegram client, LLM client + prompt, extraction schema, identity linking, report creation
   service (shared with `submitReport` so validation rules stay in one place), digest renderer.
@@ -249,9 +257,12 @@ fields are checked against code constants; unknown values → treated as null.
 
 | `is_report` & `confidence` | Action |
 |---|---|
-| ≥ 0.75 | save, reply with summary |
-| 0.45 – 0.75 | ask «Это отчёт? ✅/❌», save on ✅ using the stored extraction |
-| < 0.45 or `is_report = false` | ignore, record `SKIPPED` |
+| ≥ 0.75 | save, acknowledged with a reaction (or a reply when there is something to say — see 2.1) |
+| < 0.75 or `is_report = false` | ignore, record `SKIPPED` |
+
+`THRESHOLDS.ask` is set equal to `THRESHOLDS.save`, so the «Это отчёт? ✅/❌» band is empty. The
+eval set is what justifies this: the model puts every real report at ≥ 0.85 and every non-report at
+≤ 0.15, so the old 0.45–0.75 band never caught anything. Lowering `ask` brings the question back.
 
 Bingo: saved directly only if `bingo_explicit && bingo_confidence ≥ 0.75 && has media`; offered as
 a button if `bingo_key` set and `bingo_confidence ≥ 0.5 && has media`; otherwise not mentioned.
@@ -323,11 +334,11 @@ model TelegramLink {                      // one row per processed group message
 
 model Outbox {                            // everything the bot sends that isn't a direct reply
   id         String   @id @default(cuid())
-  kind       OutboxKind                   // REPORT_CREATED | DIGEST | TEXT
+  kind       OutboxKind                   // DIGEST | TEXT | REACTION (REPORT_CREATED is retired, see 2.3)
   chatId     String
   threadId   Int?
   payload    Json                         // e.g. { reportIds: [...] } or { periodKey: "2026-W36" }
-  dedupeKey  String?  @unique             // "digest:2026-W36", "report:<id>"
+  dedupeKey  String?  @unique             // "digest:2026-W36"
   status     OutboxStatus @default(PENDING) // PENDING | SENT | FAILED
   attempts   Int      @default(0)
   sentAt     DateTime?
@@ -347,8 +358,7 @@ the current naming scheme and `UPLOAD_DIR`.
 
 ### 7.1 Report creation service
 Extract the body of `submitReport` (validation, bingo uniqueness, transaction) into
-`src/lib/reports/create.ts` so the bot and the form share one implementation. `submitReport`
-additionally enqueues `Outbox(REPORT_CREATED)` for `source = WEB`.
+`src/lib/reports/create.ts` so the bot and the form share one implementation.
 
 «Спорт-коллаб» needs nothing extra here: it is an ordinary bingo of the author's own report, on both
 the bot and the website form.
@@ -368,7 +378,7 @@ Reports created by the bot show a small Telegram icon and a link to the source m
 |---|---|
 | `TELEGRAM_BOT_TOKEN` | Reuse the login bot from BotFather (the OIDC `client_id` is tied to a bot; one identity for login and chat). Privacy mode must be **disabled** via `/setprivacy`, or the bot added as a group admin. |
 | `TELEGRAM_GROUP_CHAT_ID` | Numeric id of the group (negative). Obtained once via `/id` (a hidden command that replies with the chat id when the variable is unset). |
-| `TELEGRAM_GROUP_THREAD_ID` | Optional; topic id if the group is a forum. Digest and announcements go there; replies go to the thread of the original message. |
+| `TELEGRAM_GROUP_THREAD_ID` | Optional; topic id if the group is a forum. The digest goes there; replies and reactions go to the original message. |
 | `TELEGRAM_PROXY_URL` | Existing. Now also used by the worker. |
 | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | CLIProxyAPI; model `gemini-3.8-flash-high`. |
 | `BOT_MODE` | `off` \| `shadow` \| `live`. Shadow = classify and record, never write reports or send messages. |
@@ -404,7 +414,7 @@ above, shares the `uploads` volume). `deploy.sh` needs no change beyond the comp
 1. Migration: `telegramUserId`, `Report.source/linkId`, bot tables. Callback stores the `id` claim.
    Deploy early so ids populate as people log in over the following days.
 2. Worker skeleton: polling through the proxy, `BotState` offset, `/help`, `/me`, `/top`,
-   `/id`. Outbox drain + `REPORT_CREATED` announcements. No LLM yet.
+   `/id`. Outbox drain. No LLM yet.
 3. LLM ingestion in `shadow` mode; build the eval set from the shadow log; tune thresholds.
 4. Switch to `live`. Announce in the group how it works.
 5. Digest: first run the coming Sunday; `/digest` for a dry run earlier.
@@ -413,7 +423,7 @@ above, shares the `uploads` volume). `deploy.sh` needs no change beyond the comp
 
 | Risk | Mitigation |
 |---|---|
-| Proxy outage → bot blind | Offset persisted; updates wait on Telegram's side up to 24 h; announcements wait in the outbox; health line on admin page. |
+| Proxy outage → bot blind | Offset persisted; updates wait on Telegram's side up to 24 h; digest rows wait in the outbox; health line on admin page. |
 | Mis-filed reports annoy people | Undo button, shadow mode first, thresholds tuned on the eval set, bingo needs a tap unless explicit. |
 | Prompt injection via chat text or images | LLM output is enums/ints only; free text stored is the author's message, never model output. |
 | Duplicate users (no username, not logged in) | Merge action on the admin page. |
@@ -426,8 +436,8 @@ above, shares the `uploads` volume). `deploy.sh` needs no change beyond the comp
 2. Long polling worker as a separate compose service on the tools image, not a poller inside the Next.js process.
 3. Outbox table for all non-reply sends; the web app never talks to Telegram directly.
 4. Bingo inferred from a photo needs one tap; bingo named in text is saved directly.
-5. Confidence bands 0.75 / 0.45 with a «Это отчёт?» question in the middle band.
-6. Website announcements are merged per user within 60 s; deletions and rejections are not announced.
+5. One confidence threshold at 0.75; the «Это отчёт?» band is empty because the model never lands in it.
+6. Ordinary saves are acknowledged with a reaction; website reports are not announced at all.
 7. Digest covers Mon 00:00 → Sun 20:00 and is fully deterministic; LLM flavour text is opt-in.
 8. Author's original message text becomes the report comment.
 9. Commands limited to `/me`, `/top`, `/digest` (admin), `/help`.

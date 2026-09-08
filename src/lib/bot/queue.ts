@@ -27,11 +27,6 @@ export function pickEligible(
   return picked;
 }
 
-/** An announcement group goes out once its first row is at least `mergeSeconds` old, so late siblings can still merge. */
-export function announcementReady(firstCreatedAt: Date, now: Date, mergeSeconds: number): boolean {
-  return now.getTime() - firstCreatedAt.getTime() >= mergeSeconds * 1000;
-}
-
 /** "2026-W36" → Monday/Sunday of that ISO week; null for a malformed key. */
 export function weekFromPeriodKey(key: string): { monday: string; sunday: string } | null {
   const m = /^(\d{4})-W(\d{2})$/.exec(key);

@@ -139,7 +139,7 @@ function fmtCutoff(cutoff: string): string {
 const signed = (n: number) => (n > 0 ? `+${n}` : String(n));
 const list = (names: string[]) => names.join(", ");
 
-export function renderDigest(d: DigestData, opts?: { comment?: string | null }): string {
+export function renderDigest(d: DigestData, opts?: { comment?: string | null; siteUrl?: string | null }): string {
   const out: string[] = [];
   out.push(`🎃 Итоги недели ${d.weekNumber} (по состоянию на ${d.cutoff ? fmtCutoff(d.cutoff) : "20:00"})`);
   out.push(d.daysLeft > 0 ? `До конца квеста ${pluralRu(d.daysLeft, "день", "дня", "дней")}` : "Квест завершён 🏁");
@@ -181,6 +181,13 @@ export function renderDigest(d: DigestData, opts?: { comment?: string | null }):
   if (opts?.comment?.trim()) {
     out.push("");
     out.push(`💬 Комментарий недели: ${opts.comment.trim()}`);
+  }
+
+  // The weekly digest is where the site link lives now: day-to-day replies were replaced by
+  // reactions, so nothing else in the group carries it any more.
+  if (opts?.siteUrl?.trim()) {
+    out.push("");
+    out.push(`📊 Таблица, бинго и профиль: ${opts.siteUrl.trim()}`);
   }
   return out.join("\n");
 }

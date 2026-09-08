@@ -209,6 +209,19 @@ export class TelegramApi {
     await this.call("deleteMessage", { chat_id: chatId, message_id: messageId });
   }
 
+  /**
+   * Reacts to a message with a single emoji (pass null to clear). Only emoji from Telegram's own
+   * reaction set are accepted — anything else fails with REACTION_INVALID, and the group's admins
+   * can narrow the set further, so callers must tolerate a rejection.
+   */
+  async setMessageReaction(p: { chatId: string | number; messageId: number; emoji: string | null }): Promise<void> {
+    await this.call("setMessageReaction", {
+      chat_id: p.chatId,
+      message_id: p.messageId,
+      reaction: p.emoji ? [{ type: "emoji", emoji: p.emoji }] : [],
+    });
+  }
+
   async answerCallbackQuery(id: string, text?: string, showAlert?: boolean): Promise<void> {
     await this.call("answerCallbackQuery", { callback_query_id: id, text, show_alert: showAlert });
   }

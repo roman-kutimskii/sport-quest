@@ -115,6 +115,16 @@ describe("TelegramApi", () => {
     });
   });
 
+  it("setMessageReaction sends one emoji, and an empty list to clear", async () => {
+    const { calls, fetchImpl } = stubFetch(() => ({ body: { ok: true, result: true } }));
+    const api = new TelegramApi({ token: "T", fetchImpl });
+    await api.setMessageReaction({ chatId: GROUP.id, messageId: 10, emoji: "🔥" });
+    await api.setMessageReaction({ chatId: GROUP.id, messageId: 10, emoji: null });
+    expect(calls[0].url).toBe("https://api.telegram.org/botT/setMessageReaction");
+    expect(calls[0].body).toEqual({ chat_id: GROUP.id, message_id: 10, reaction: [{ type: "emoji", emoji: "🔥" }] });
+    expect(calls[1].body).toEqual({ chat_id: GROUP.id, message_id: 10, reaction: [] });
+  });
+
   it("429 → TelegramApiError with retryAfter", async () => {
     const { fetchImpl } = stubFetch(() => ({ status: 429, body: { ok: false, error_code: 429, description: "Too Many Requests: retry after 7", parameters: { retry_after: 7 } } }));
     const api = new TelegramApi({ token: "T", fetchImpl });

@@ -3,14 +3,13 @@
  *   receive  — long-poll getUpdates through the proxy; store messages as TelegramLink rows,
  *              run commands and button callbacks inline;
  *   process  — run the LLM pipeline on RECEIVED rows (≤ LIMITS.llmInFlight, one per author);
- *   outbox   — every 3 s send REPORT_CREATED announcements, TEXT rows and DIGEST rows;
+ *   outbox   — every 3 s send TEXT rows and DIGEST rows;
  *   schedule — every 60 s enqueue the weekly digest and expire unanswered «Это отчёт?».
  * Run: `npx tsx scripts/bot.ts` (env: BOT_MODE=off|shadow|live, TELEGRAM_BOT_TOKEN, …).
  */
 import "dotenv/config";
 import { z } from "zod";
-import { activityLabel, BINGO_TASKS } from "@/lib/bingo";
-import { OutboxStatus, Prisma, ReportStatus, TelegramLinkStatus, prisma, type Outbox } from "@/lib/db";
+import { OutboxStatus, Prisma, TelegramLinkStatus, prisma, type Outbox } from "@/lib/db";
 import { getActiveQuest, questDates } from "@/lib/quest";
 import { addDays, toDateStr } from "@/lib/scoring/dates";
 import { handleCallback } from "@/lib/bot/callbacks";
@@ -18,14 +17,14 @@ import { handleCommand } from "@/lib/bot/commands";
 import { LIMITS, botConfig } from "@/lib/bot/config";
 import { nowInTz, periodKey, weekBounds } from "@/lib/bot/dates";
 import { computeDigest, renderDigest, type DigestInput } from "@/lib/bot/digest";
-import { errorMessage, processLink, userScore, type Deps } from "@/lib/bot/ingest";
+import { errorMessage, processLink, type Deps } from "@/lib/bot/ingest";
 import { OpenAiCompatLlm, RateLimiter } from "@/lib/bot/llm";
-import { enqueueDigest, groupAnnouncements } from "@/lib/bot/outbox";
-import { announcementReady, pickEligible, weekFromPeriodKey, zonedTimeToUtc } from "@/lib/bot/queue";
+import { enqueueDigest } from "@/lib/bot/outbox";
+import { pickEligible, weekFromPeriodKey, zonedTimeToUtc } from "@/lib/bot/queue";
 import { STATE_KEYS, getState, setState } from "@/lib/bot/state";
 import { undoLink } from "@/lib/bot/undo";
 import { TelegramApi, TelegramApiError, mediaKinds, messageText, parseCommand, type TgMessage, type TgUpdate } from "@/lib/bot/telegram-api";
-import { renderAnnouncement, renderPrivateOnlyGroup, type AnnouncementItem } from "@/lib/bot/text";
+import { renderPrivateOnlyGroup } from "@/lib/bot/text";
 
 /** Worker-wide dependencies: the shared pipeline deps plus the bot's own username (for `/cmd@bot`). */
 type WorkerDeps = Deps & { botUsername?: string };
@@ -158,8 +157,13 @@ async function handleEdit(deps: WorkerDeps, m: TgMessage): Promise<void> {
     return; // not processed yet: the running/queued pipeline will read the new text
   }
 
-  if (link.replyMessageId && deps.cfg.mode === "live") {
-    await deps.api.deleteMessage(chatId, link.replyMessageId).catch((e) => logError(`could not delete reply ${link.replyMessageId}`, e));
+  if (deps.cfg.mode === "live") {
+    // The first pass acknowledged with either a reply or a reaction; clear whichever it was.
+    if (link.replyMessageId) {
+      await deps.api.deleteMessage(chatId, link.replyMessageId).catch((e) => logError(`could not delete reply ${link.replyMessageId}`, e));
+    } else {
+      await deps.api.setMessageReaction({ chatId, messageId: link.messageId, emoji: null }).catch(() => undefined);
+    }
   }
   const undone = await undoLink(link.id);
   await prisma.telegramLink.update({
@@ -167,6 +171,18 @@ async function handleEdit(deps: WorkerDeps, m: TgMessage): Promise<void> {
     data: { status: TelegramLinkStatus.RECEIVED, error: null, extraction: Prisma.DbNull, llmRaw: null, confidence: null, replyMessageId: null, processedAt: null },
   });
   log(`edited caption on ${chatId}/${m.message_id}: reprocessing link ${link.id} (${undone?.deleted ?? 0} report(s) undone)`);
+}
+
+/**
+ * «I only work in the group» — said once per person, not once per message: someone who keeps
+ * writing to the bot in private should not get an echo every time.
+ */
+async function notePrivateChat(deps: WorkerDeps, m: TgMessage): Promise<void> {
+  const id = String(m.from?.id ?? m.chat.id);
+  const told = (await getState<string[]>(STATE_KEYS.privateNoticeSent)) ?? [];
+  if (told.includes(id)) return;
+  await deps.api.sendMessage({ chatId: m.chat.id, text: renderPrivateOnlyGroup() }).catch((e) => logError("private reply failed", e));
+  await setState(STATE_KEYS.privateNoticeSent, [...told, id]);
 }
 
 async function handleUpdate(deps: WorkerDeps, u: TgUpdate): Promise<void> {
@@ -183,9 +199,7 @@ async function handleUpdate(deps: WorkerDeps, u: TgUpdate): Promise<void> {
   if (cmd) return handleCommand(deps, m, cmd);
 
   if (cfg.groupChatId !== null && String(m.chat.id) !== cfg.groupChatId) {
-    if (m.chat.type === "private" && cfg.mode === "live") {
-      await deps.api.sendMessage({ chatId: m.chat.id, text: renderPrivateOnlyGroup() }).catch((e) => logError("private reply failed", e));
-    }
+    if (m.chat.type === "private" && cfg.mode === "live") await notePrivateChat(deps, m);
     return;
   }
   if (cfg.groupChatId === null) return; // group not configured yet: only /id is useful
@@ -248,8 +262,8 @@ async function processTick(deps: Deps): Promise<void> {
 
 // ---------- outbox drain ----------
 
-const AnnouncementPayload = z.object({ userId: z.string(), reportIds: z.array(z.string()) });
 const TextPayload = z.object({ text: z.string(), editMessageId: z.number().nullable().optional() });
+const ReactionPayload = z.object({ messageId: z.number(), emoji: z.string().nullable() });
 const DigestPayload = z.object({ periodKey: z.string(), manual: z.boolean().optional() });
 
 async function markSent(ids: string[], error: string | null = null): Promise<void> {
@@ -266,25 +280,6 @@ async function markFailed(rows: Outbox[], e: unknown): Promise<void> {
     });
   }
   logError(`outbox ${rows.map((r) => r.id).join(",")} attempt failed`, e);
-}
-
-async function sendAnnouncement(deps: Deps, group: { rowIds: string[]; userId: string; reportIds: string[] }): Promise<void> {
-  const { cfg } = deps;
-  const quest = await getActiveQuest();
-  const reports = await prisma.report.findMany({
-    where: { id: { in: group.reportIds }, status: { not: ReportStatus.REJECTED } },
-    include: { user: { select: { name: true, isActive: true } } },
-    orderBy: [{ date: "desc" }, { createdAt: "asc" }],
-  });
-  if (!reports.length || !reports[0].user.isActive) return; // deleted / rejected / deactivated: nothing to announce
-  const items: AnnouncementItem[] = reports.map((r) => {
-    const act = r.activityTypes.length ? activityLabel(r.activityTypes) : undefined;
-    const task = BINGO_TASKS.find((t) => t.key === r.bingoKey);
-    return { kind: r.kind, activityTitle: act?.title ?? null, activityEmoji: act?.emoji ?? null, bingoTitle: task?.title ?? null, bingoEmoji: task?.emoji ?? null, steps: r.steps };
-  });
-  const { total, streak, bingoDone } = await userScore(quest, group.userId);
-  const text = renderAnnouncement({ name: reports[0].user.name, items, date: toDateStr(reports[0].date), total, streak, bingoDone });
-  await deps.api.sendMessage({ chatId: cfg.groupChatId!, text, threadId: cfg.groupThreadId, disablePreview: true });
 }
 
 async function buildDigestInput(deps: Deps, payload: z.infer<typeof DigestPayload>): Promise<DigestInput> {
@@ -343,8 +338,9 @@ async function digestComment(deps: Deps, rendered: string): Promise<string | nul
 async function sendDigest(deps: Deps, row: Outbox, payload: z.infer<typeof DigestPayload>): Promise<void> {
   const input = await buildDigestInput(deps, payload);
   const data = computeDigest(input);
-  let text = renderDigest(data);
-  if (deps.cfg.digest.llmComment) text = renderDigest(data, { comment: await digestComment(deps, text) });
+  const siteUrl = deps.cfg.publicUrl;
+  let text = renderDigest(data, { siteUrl });
+  if (deps.cfg.digest.llmComment) text = renderDigest(data, { siteUrl, comment: await digestComment(deps, text) });
   await deps.api.sendMessage({ chatId: row.chatId ?? deps.cfg.groupChatId!, text, threadId: row.threadId ?? deps.cfg.groupThreadId, disablePreview: true });
   if (!payload.manual) await setState(STATE_KEYS.lastDigest, payload.periodKey);
 }
@@ -359,6 +355,12 @@ async function sendText(deps: Deps, row: Outbox, payload: z.infer<typeof TextPay
   }
 }
 
+async function sendReaction(deps: Deps, row: Outbox, payload: z.infer<typeof ReactionPayload>): Promise<void> {
+  const chatId = row.chatId ?? deps.cfg.groupChatId;
+  if (!chatId) throw new Error("no chat id");
+  await deps.api.setMessageReaction({ chatId, messageId: payload.messageId, emoji: payload.emoji });
+}
+
 async function outboxTick(deps: Deps): Promise<void> {
   const { cfg } = deps;
   const rows = await prisma.outbox.findMany({
@@ -366,39 +368,7 @@ async function outboxTick(deps: Deps): Promise<void> {
     orderBy: { createdAt: "asc" },
     take: 100,
   });
-  if (!rows.length) return;
-  const byId = new Map(rows.map((r) => [r.id, r]));
-  const now = new Date();
-
-  // REPORT_CREATED: merge per user within announceMergeSeconds; a group waits until its first row is old enough.
-  const announcementRows: { id: string; createdAt: Date; payload: z.infer<typeof AnnouncementPayload> }[] = [];
   for (const row of rows) {
-    if (row.kind !== "REPORT_CREATED") continue;
-    const p = AnnouncementPayload.safeParse(row.payload);
-    if (!p.success) {
-      await prisma.outbox.update({ where: { id: row.id }, data: { status: OutboxStatus.FAILED, error: "malformed payload" } });
-      continue;
-    }
-    announcementRows.push({ id: row.id, createdAt: row.createdAt, payload: p.data });
-  }
-  for (const group of groupAnnouncements(announcementRows, LIMITS.announceMergeSeconds)) {
-    const first = byId.get(group.rowIds[0])!;
-    if (!announcementReady(first.createdAt, now, LIMITS.announceMergeSeconds)) continue;
-    if (cfg.mode !== "live" || !cfg.groupChatId) {
-      await markSent(group.rowIds, cfg.mode !== "live" ? cfg.mode : "no group chat id");
-      continue;
-    }
-    try {
-      await sendAnnouncement(deps, group);
-      await markSent(group.rowIds);
-      log(`announced ${group.reportIds.length} report(s) of ${group.userId}`);
-    } catch (e) {
-      await markFailed(group.rowIds.map((id) => byId.get(id)!), e);
-    }
-  }
-
-  for (const row of rows) {
-    if (row.kind === "REPORT_CREATED") continue;
     if (cfg.mode !== "live") {
       await markSent([row.id], cfg.mode);
       continue;
@@ -408,6 +378,8 @@ async function outboxTick(deps: Deps): Promise<void> {
         await sendText(deps, row, TextPayload.parse(row.payload));
       } else if (row.kind === "DIGEST") {
         await sendDigest(deps, row, DigestPayload.parse(row.payload));
+      } else if (row.kind === "REACTION") {
+        await sendReaction(deps, row, ReactionPayload.parse(row.payload));
       }
       await markSent([row.id]);
       log(`outbox ${row.kind} ${row.id} sent`);

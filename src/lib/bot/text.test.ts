@@ -3,7 +3,6 @@ import {
   fmtDateShort,
   fmtSteps,
   pluralRu,
-  renderAnnouncement,
   renderHelp,
   renderMe,
   renderPrivateOnlyGroup,
@@ -108,48 +107,6 @@ describe("small replies", () => {
     expect(renderPrivateOnlyGroup()).toContain("Я работаю только в группе квеста");
     expect(renderReplyDateError("future")).toContain("будущем");
     expect(renderReplyDateError("outside")).toContain("вне квеста");
-  });
-});
-
-describe("renderAnnouncement", () => {
-  it("activity line", () => {
-    const s = renderAnnouncement({
-      name: "Маша",
-      items: [{ kind: "ACTIVITY", activityTitle: "Йога", activityEmoji: "🧘" }],
-      date: "2026-09-03",
-      total: 12,
-      streak: 3,
-    });
-    expect(s).toBe("🧘 Маша: йога за 3 сен · 12 🎃 · стрик 3 🔥");
-  });
-  it("bingo line with progress", () => {
-    const s = renderAnnouncement({
-      name: "Петя",
-      items: [{ kind: "BINGO", bingoTitle: "Лифтофобия", bingoEmoji: "🪜" }],
-      date: "2026-09-03",
-      total: 20,
-      streak: 0,
-      bingoDone: 5,
-    });
-    expect(s).toBe("🪜 Петя: бинго «Лифтофобия» (5/9) за 3 сен · 20 🎃");
-  });
-  it("merges activity + bingo + steps into one line", () => {
-    const s = renderAnnouncement({
-      name: "Петя",
-      items: [
-        { kind: "ACTIVITY", activityTitle: "Бег", activityEmoji: "🏃", steps: 11000 },
-        { kind: "BINGO", bingoTitle: "Ранняя пташка", bingoEmoji: "🌅" },
-      ],
-      date: "2026-09-03",
-      total: 20,
-      streak: 2,
-      bingoDone: 1,
-    });
-    expect(s).toBe("🏃 Петя: бег + бинго «Ранняя пташка» (1/9) за 3 сен · 11 000 шагов · 20 🎃 · стрик 2 🔥");
-  });
-  it("steps-only", () => {
-    const s = renderAnnouncement({ name: "Оля", items: [{ kind: "STEPS", steps: 12000 }], date: "2026-09-03", total: 4, streak: 0 });
-    expect(s).toBe("🚶 Оля: 12 000 шагов за 3 сен · 4 🎃");
   });
 });
 
