@@ -53,10 +53,10 @@ export const THRESHOLDS = { save: 0.75, ask: 0.75, bingoExplicit: 0.75, bingoOff
 
 /**
  * Emoji the bot reacts with instead of replying (spec §2.1). Must come from Telegram's own reaction
- * set — 🎃 is not in it, so the quest's currency cannot be used here — and the group's admins may
- * narrow that set further; a rejected reaction is logged and the report is saved regardless.
+ * set; 🎃 is in it, so the quest's currency doubles as the «записал» mark. The group's admins can
+ * narrow that set further, so a rejected reaction is logged and the report is saved regardless.
  */
-export const REACTIONS = { saved: "🔥", alreadyCounted: "👌" } as const;
+export const REACTIONS = { saved: "🎃", alreadyCounted: "👌" } as const;
 
 export const LIMITS = {
   llmPerMinute: 20,

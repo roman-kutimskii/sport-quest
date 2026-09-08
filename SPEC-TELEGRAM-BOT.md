@@ -56,7 +56,7 @@ buttons **[decided]**:
 **Reactions instead of replies.** The reply above is sent only when it carries something the author
 must act on: a bingo offer (it needs the button), a bingo that wants a photo, or a video that was
 too large. The ordinary save — activity and/or steps, nothing to decide — is acknowledged with a
-reaction on the author's own message: 🔥 when the report scored, 👌 when the day was already
+reaction on the author's own message: 🎃 when the report scored, 👌 when the day was already
 counted. No message, no notification, nothing to scroll past. The running score moved to `/me` and
 the weekly digest, which also carries the site link.
 
