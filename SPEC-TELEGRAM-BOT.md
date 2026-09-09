@@ -68,8 +68,7 @@ so the middle band is empty (see 5.3). The handling code stays in place for rows
 state and for the day the band is reopened.
 
 Media handling:
-- Photos and videos become proof files exactly as website uploads do (stored under `UPLOAD_DIR`,
-  not shown in the gallery until the author opts in on the site).
+- Photos and videos become proof files exactly as website uploads do (stored under `UPLOAD_DIR`).
 - Videos over 20 MB cannot be downloaded through the Bot API. The report is still saved; the reply
   adds «видео больше 20 МБ — прикрепи его на сайте, если нужно».
 - Albums (Telegram sends each photo as a separate message with a shared `media_group_id`) are

@@ -49,9 +49,6 @@ export default async function Home() {
               {me && me.score.currentStreak > 0 && (
                 <span className="text-sm text-fgm">Стрик: <b>{me.score.currentStreak}</b> 🔥</span>
               )}
-              {quest.votingOpen && (
-                <Link href="/vote" className="btn-ghost">📸 Выбрать Амбассадора Осени</Link>
-              )}
             </div>
           )}
           {!user && (

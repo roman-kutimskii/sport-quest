@@ -48,19 +48,3 @@ export async function deleteOwnReport(formData: FormData) {
   revalidatePath("/");
   revalidatePath(`/u/${user.id}`);
 }
-
-/** Flip whether one proof of the caller's own report is shown in the gallery. */
-export async function toggleGalleryProof(formData: FormData) {
-  const user = await requireUser();
-  const id = String(formData.get("id") ?? "");
-  const url = String(formData.get("url") ?? "");
-  const report = await prisma.report.findUnique({ where: { id } });
-  if (!report || report.userId !== user.id || !report.proofUrls.includes(url)) return;
-  const galleryUrls = report.galleryUrls.includes(url)
-    ? report.galleryUrls.filter((u) => u !== url)
-    : report.proofUrls.filter((u) => u === url || report.galleryUrls.includes(u));
-  await prisma.report.update({ where: { id }, data: { galleryUrls } });
-  revalidatePath(`/u/${user.id}`);
-  revalidatePath("/gallery");
-  revalidatePath("/vote");
-}

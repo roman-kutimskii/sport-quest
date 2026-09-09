@@ -5,7 +5,7 @@ import { useState } from "react";
 
 type NavUser = { id: string; name: string; avatarEmoji: string; isAdmin: boolean } | null;
 
-export function Nav({ user, votingOpen }: { user: NavUser; votingOpen: boolean }) {
+export function Nav({ user }: { user: NavUser }) {
   const path = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -13,8 +13,6 @@ export function Nav({ user, votingOpen }: { user: NavUser; votingOpen: boolean }
     { href: "/", label: "Таблица", show: true },
     { href: "/log", label: "＋ Отчёт", show: !!user },
     { href: user ? `/u/${user.id}` : "/login", label: "Мой профиль", show: !!user },
-    { href: "/gallery", label: "Галерея", show: !!user },
-    { href: "/vote", label: "📸 Голосование", show: !!user && votingOpen },
     { href: "/rules", label: "Правила", show: true },
     { href: "/results", label: "Итоги", show: true },
     { href: "/admin", label: "Админка", show: !!user?.isAdmin },

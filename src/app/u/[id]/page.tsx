@@ -7,7 +7,6 @@ import { formatRuDate, toDateStr } from "@/lib/scoring/dates";
 import { Invulnerable, Pumpkins, StreakBadge } from "@/components/pumpkins";
 import { QuestCalendar } from "@/components/calendar";
 import { Proofs } from "@/components/proof";
-import { MyGallery } from "./my-gallery";
 import { deleteOwnReport } from "@/app/log/actions";
 import { ProfileForm } from "./profile-form";
 import { messageLink } from "@/lib/bot/undo";
@@ -94,7 +93,6 @@ export default async function ProfilePage({ params, searchParams }: PageProps<"/
         </div>
       </section>
 
-      {isMe && <MyGallery reports={reports} />}
 
       <section className="card overflow-hidden">
         <h2 className="border-b border-line px-5 py-3 font-bold">История отчётов</h2>

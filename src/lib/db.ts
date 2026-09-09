@@ -20,7 +20,6 @@ export type {
   Report,
   Adjustment,
   NominationResult,
-  AmbassadorVote,
   TelegramLink,
   Outbox,
   BotState,
