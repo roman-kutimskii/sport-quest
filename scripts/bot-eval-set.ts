@@ -59,6 +59,14 @@ export const EVAL_SET: EvalCase[] = [
   { text: "Сходила на пилатес", expect: { is_report: true, band: "save" } },
   { text: "Погоняли в футбол с ребятами", expect: { is_report: true, band: "save" } },
 
+  // heavy physical work counts as «other», even when the author says it was not sport
+  { text: "Спортивных достижений сегодня нет, но есть небольшие строительные ⚒️", mediaKinds: ["photo"], expect: { is_report: true, band: "save", activity_types: ["other"] } },
+  { text: "Весь день штукатурила стены на даче, руки отваливаются", expect: { is_report: true, band: "save", activity_types: ["other"] } },
+  { text: "Переезд: таскали шкафы на 5 этаж без лифта", mediaKinds: ["photo"], expect: { is_report: true, band: "save", activity_types: ["other"] } },
+  { text: "Два часа копал грядки в огороде", expect: { is_report: true, band: "save", activity_types: ["other"] } },
+  { text: "Помыла посуду и приготовила ужин, устала", expect: { is_report: false } },
+  { text: "Весь день на работе за компом, никакого спорта", expect: { is_report: false } },
+
   // relative dates
   { text: "Вчера пробежала 3 км, забыла написать", expect: { is_report: true, activity_types: ["run"], date: "2026-09-09" } },
   { text: "Позавчера был зал", expect: { is_report: true, activity_types: ["gym"], date: "2026-09-08" } },

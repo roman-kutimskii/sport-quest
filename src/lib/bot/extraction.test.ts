@@ -105,6 +105,12 @@ describe("buildSystemPrompt", () => {
     expect(p).toContain('"stairs", "leaves"');
   });
 
+  it("files heavy physical work as «other» but not everyday chores", () => {
+    const p = buildSystemPrompt(ctx);
+    expect(p).toMatch(/ФИЗИЧЕСКИЙ ТРУД.*→ "other"/);
+    expect(p).toMatch(/бытовые дела.*не активность/);
+  });
+
   it("allows steps from a pedometer screenshot but not from kcal/BPM/distance", () => {
     const p = buildSystemPrompt(ctx);
     expect(p).toContain("СКРИНШОТ ШАГОМЕРА");
