@@ -1,5 +1,5 @@
 import { messageLink } from "@/lib/bot/undo";
-import { dismissTelegramWarning, undoTelegramLink } from "../actions";
+import { dismissTelegramWarning, retryTelegramLink, undoTelegramLink } from "../actions";
 import { STATUS, describeExtraction, fmt, mediaIcons, type FeedRow } from "./data";
 
 export function LinkRow({ l }: { l: FeedRow }) {
@@ -26,6 +26,12 @@ export function LinkRow({ l }: { l: FeedRow }) {
       </div>
       <div className="flex items-center gap-2">
         {url && <a href={url} target="_blank" rel="noreferrer" className="btn-ghost !px-2 !py-1 text-xs">открыть</a>}
+        {l.status === "FAILED" && (
+          <form action={retryTelegramLink}>
+            <input type="hidden" name="id" value={l.id} />
+            <button className="btn-ghost !px-2 !py-1 text-xs" title="Прогнать сообщение через бота ещё раз, без сообщений в чат">Повторить</button>
+          </form>
+        )}
         {l.status === "SAVED" && l.error && (
           <form action={dismissTelegramWarning}>
             <input type="hidden" name="id" value={l.id} />

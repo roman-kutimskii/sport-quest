@@ -99,6 +99,8 @@ async function albumMessages(link: TelegramLink, primary: TgMessage): Promise<Tg
 
 async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
   const { cfg } = deps;
+  // An admin «Повторить»: the message is old news in the chat, so say nothing there (see retry.ts).
+  const quiet = link.retryRequestedAt !== null;
   const m = parseStoredMessage(link.update);
   if (!m) throw new Error("stored update is not a message");
   if (parseCommand(m)) return finish(link.id, TelegramLinkStatus.SKIPPED, "command");
@@ -171,7 +173,7 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
   if (decision.action === "skip") return finish(link.id, TelegramLinkStatus.SKIPPED, null);
 
   if ("error" in resolved) {
-    if (cfg.mode === "live") {
+    if (cfg.mode === "live" && !quiet) {
       await deps.api.sendMessage({ chatId: link.chatId, text: renderReplyDateError(resolved.error), threadId: link.threadId, replyTo: link.messageId });
     }
     return finish(link.id, TelegramLinkStatus.SKIPPED, `date:${resolved.error}`);
@@ -188,6 +190,16 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
     log(link.id, `created participant ${user.name} (${user.telegramHandle ?? "-"})`);
   }
 
+  if (decision.action === "ask" && quiet) {
+    // No question in the chat: the row stays in «требует внимания» with the note instead.
+    await prisma.telegramLink.update({
+      where: { id: link.id },
+      data: { status: TelegramLinkStatus.ASKED, replyMessageId: null, processedAt: new Date(), error: "повтор: не уверен, что это отчёт — вопрос в чат не отправлен" },
+    });
+    log(link.id, "ASKED (quiet retry, no question sent)");
+    return;
+  }
+
   if (decision.action === "ask") {
     const sent = await deps.api.sendMessage({
       chatId: link.chatId, text: renderReplyAsk(), threadId: link.threadId, replyTo: link.messageId, replyMarkup: buildAskKeyboard(link.id),
@@ -200,7 +212,7 @@ async function runPipeline(deps: Deps, link: TelegramLink): Promise<void> {
     return;
   }
 
-  await saveFromExtraction(deps, { ...link, userId: user.id }, stored);
+  await saveFromExtraction(deps, { ...link, userId: user.id }, stored, { quiet });
 }
 
 /** A confident report with neither an activity nor steps nor bingo is still «something» — file it as «Другое». */
@@ -247,16 +259,40 @@ export async function userScore(quest: Quest, userId: string): Promise<{ total: 
 /**
  * The «save» step: creates the report(s) from a stored extraction, replies (or edits the question
  * message when `editMessageId` is given) and marks the link SAVED. Throws on hard failures.
+ * `quiet` (an admin retry) acknowledges with a reaction only and never posts to the chat.
+ * Idempotent per link: a link that already has reports is only marked SAVED again.
  */
 export async function saveFromExtraction(
   deps: Deps,
   link: TelegramLink,
   stored: StoredExtraction,
-  opts: { editMessageId?: number | null } = {},
+  opts: { editMessageId?: number | null; quiet?: boolean } = {},
 ): Promise<StoredExtraction> {
   const userId = link.userId;
   if (!userId) throw new Error("link has no linked user");
   if (!stored.resolvedDate) throw new Error("no resolved date");
+
+  // A run that failed after createReport (or a repeated ✅) must not file the same message twice.
+  const existing = await prisma.report.findMany({ where: { linkId: link.id }, select: { activityTypes: true, bingoKey: true } });
+  if (existing.length) {
+    const next: StoredExtraction = {
+      ...stored,
+      savedActivityTypes: [...new Set(existing.flatMap((r) => r.activityTypes))],
+      bingoSaved: existing.some((r) => r.bingoKey !== null),
+    };
+    if (!opts.editMessageId) {
+      await deps.api
+        .setMessageReaction({ chatId: link.chatId, messageId: link.messageId, emoji: REACTIONS.saved })
+        .catch((e) => log(link.id, `reaction rejected (report is saved): ${errorMessage(e)}`));
+    }
+    await prisma.telegramLink.update({
+      where: { id: link.id },
+      data: { status: TelegramLinkStatus.SAVED, extraction: toJson(next), processedAt: new Date(), error: null },
+    });
+    log(link.id, `SAVED: already has ${existing.length} report(s), not creating again`);
+    return next;
+  }
+
   const quest = await getActiveQuest();
   const decision = decide(stored, { hasMedia: stored.hasMedia });
 
@@ -286,11 +322,14 @@ export async function saveFromExtraction(
   // The ordinary case says everything with a reaction on the author's own message; a reply is sent
   // only when it carries a button or an explanation. `editMessageId` (an answered «Это отчёт?»)
   // always edits: that message is already in the chat and would otherwise be left hanging.
+  // A quiet run turns a would-be reply into the plain reaction (a bingo offer is dropped).
   let replyMessageId: number | null = null;
-  if (ack.kind === "reaction" && !opts.editMessageId) {
+  if ((ack.kind === "reaction" || opts.quiet) && !opts.editMessageId) {
+    const emoji = ack.kind === "reaction" ? ack.emoji : dayAlreadyActive ? REACTIONS.alreadyCounted : REACTIONS.saved;
+    if (ack.kind === "reply") log(link.id, "quiet retry: reply replaced by a reaction");
     await deps.api
-      .setMessageReaction({ chatId: link.chatId, messageId: link.messageId, emoji: ack.emoji })
-      .catch((e) => log(link.id, `reaction ${ack.emoji} rejected (report is saved): ${errorMessage(e)}`));
+      .setMessageReaction({ chatId: link.chatId, messageId: link.messageId, emoji })
+      .catch((e) => log(link.id, `reaction ${emoji} rejected (report is saved): ${errorMessage(e)}`));
   } else {
     const { total, streak } = await userScore(quest, userId);
     const text = renderSavedText(stored, {

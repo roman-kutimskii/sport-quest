@@ -134,6 +134,8 @@ model TelegramLink {
   error          String?
   createdAt      DateTime           @default(now())
   processedAt    DateTime?
+  /// Set when an admin re-queued a FAILED row: the pipeline then runs quietly (reaction only, no chat messages).
+  retryRequestedAt DateTime?
   reports        Report[]
 
   @@unique([chatId, messageId])

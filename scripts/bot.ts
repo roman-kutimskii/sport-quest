@@ -168,7 +168,10 @@ async function handleEdit(deps: WorkerDeps, m: TgMessage): Promise<void> {
   const undone = await undoLink(link.id);
   await prisma.telegramLink.update({
     where: { id: link.id },
-    data: { status: TelegramLinkStatus.RECEIVED, error: null, extraction: Prisma.DbNull, llmRaw: null, confidence: null, replyMessageId: null, processedAt: null },
+    data: {
+      status: TelegramLinkStatus.RECEIVED, error: null, extraction: Prisma.DbNull, llmRaw: null, confidence: null, replyMessageId: null, processedAt: null,
+      retryRequestedAt: null,
+    },
   });
   log(`edited caption on ${chatId}/${m.message_id}: reprocessing link ${link.id} (${undone?.deleted ?? 0} report(s) undone)`);
 }
@@ -403,8 +406,14 @@ async function scheduleTick(deps: Deps): Promise<void> {
     }
   }
 
+  // A quietly retried row can be days old; its 24 h run from the retry, not from the message.
+  const askCutoff = new Date(Date.now() - LIMITS.askExpiryHours * 3_600_000);
   const expired = await prisma.telegramLink.findMany({
-    where: { status: TelegramLinkStatus.ASKED, createdAt: { lt: new Date(Date.now() - LIMITS.askExpiryHours * 3_600_000) } },
+    where: {
+      status: TelegramLinkStatus.ASKED,
+      createdAt: { lt: askCutoff },
+      OR: [{ retryRequestedAt: null }, { retryRequestedAt: { lt: askCutoff } }],
+    },
     take: 50,
   });
   for (const link of expired) {

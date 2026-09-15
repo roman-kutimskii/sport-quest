@@ -11,14 +11,31 @@ export interface LlmClient {
 
 export class LlmError extends Error {
   status?: number;
-  constructor(message: string, status?: number, options?: { cause?: unknown }) {
+  /** From a 429's Retry-After header. */
+  retryAfterMs?: number;
+  constructor(message: string, status?: number, options?: { cause?: unknown; retryAfterMs?: number }) {
     super(message, options);
     this.name = "LlmError";
     this.status = status;
+    this.retryAfterMs = options?.retryAfterMs;
   }
 }
 
-const RETRY_DELAYS_MS = [1000, 3000];
+/**
+ * Pauses before the 2nd and 3rd attempt (±20 % jitter): long enough to ride out a provider blip
+ * such as CLIProxyAPI's «503 auth_unavailable», which a few seconds did not.
+ */
+export const RETRY_DELAYS_MS = [15_000, 45_000];
+const MAX_RETRY_AFTER_MS = 120_000;
+
+/**
+ * Worth waiting out: 5xx, 429 and network errors / timeouts (no status). Any other 4xx, and a 200
+ * with an unusable body, would fail the same way again.
+ */
+export function isRetryableLlmError(e: unknown): boolean {
+  if (!(e instanceof LlmError)) return false;
+  return e.status === undefined || e.status === 429 || e.status >= 500;
+}
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -31,14 +48,24 @@ export class OpenAiCompatLlm implements LlmClient {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly sleepImpl: (ms: number) => Promise<void>;
+  private readonly random: () => number;
 
-  constructor(opts: { baseUrl: string; apiKey: string; model: string; timeoutMs?: number; fetchImpl?: typeof fetch; sleepImpl?: (ms: number) => Promise<void> }) {
+  constructor(opts: {
+    baseUrl: string; apiKey: string; model: string; timeoutMs?: number;
+    fetchImpl?: typeof fetch; sleepImpl?: (ms: number) => Promise<void>; random?: () => number;
+  }) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.apiKey = opts.apiKey;
     this.model = opts.model;
     this.timeoutMs = opts.timeoutMs ?? 40_000;
     this.fetchImpl = opts.fetchImpl ?? fetch;
     this.sleepImpl = opts.sleepImpl ?? sleep;
+    this.random = opts.random ?? Math.random;
+  }
+
+  private backoffMs(attempt: number, err: LlmError): number {
+    const base = Math.round(RETRY_DELAYS_MS[attempt] * (0.8 + 0.4 * this.random()));
+    return Math.max(base, Math.min(err.retryAfterMs ?? 0, MAX_RETRY_AFTER_MS));
   }
 
   async complete(input: { system: string; user: LlmPart[]; json?: boolean }): Promise<{ text: string; raw?: unknown }> {
@@ -59,19 +86,18 @@ export class OpenAiCompatLlm implements LlmClient {
       ...(input.json ? { response_format: { type: "json_object" } } : {}),
     };
 
-    let lastError: LlmError | undefined;
-    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-      if (attempt > 0) await this.sleepImpl(RETRY_DELAYS_MS[attempt - 1]);
+    for (let attempt = 0; ; attempt++) {
       try {
         return await this.once(body);
       } catch (e) {
         const err = e instanceof LlmError ? e : new LlmError(`LLM request failed: ${String(e)}`, undefined, { cause: e });
-        const retryable = err.status === undefined || err.status === 429 || err.status >= 500;
-        if (!retryable) throw err;
-        lastError = err;
+        if (!isRetryableLlmError(err)) throw err;
+        if (attempt >= RETRY_DELAYS_MS.length) {
+          throw new LlmError(`${err.message} (after ${attempt + 1} attempts)`, err.status, { cause: err });
+        }
+        await this.sleepImpl(this.backoffMs(attempt, err));
       }
     }
-    throw lastError ?? new LlmError("LLM request failed");
   }
 
   private async once(body: unknown): Promise<{ text: string; raw: unknown }> {
@@ -88,7 +114,10 @@ export class OpenAiCompatLlm implements LlmClient {
     }
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new LlmError(`LLM HTTP ${res.status}: ${text.slice(0, 300)}`, res.status);
+      const retryAfterSec = Number(res.headers.get("retry-after"));
+      throw new LlmError(`LLM HTTP ${res.status}: ${text.slice(0, 300)}`, res.status, {
+        retryAfterMs: Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec * 1000 : undefined,
+      });
     }
     let raw: ChatCompletion;
     try {

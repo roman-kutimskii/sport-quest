@@ -128,6 +128,17 @@ export async function mergeParticipants(formData: FormData) {
   refreshAll(intoId);
 }
 
+/** «Повторить» on a failed bot row: the worker re-runs it quietly. A double click is a no-op. */
+export async function retryTelegramLink(formData: FormData) {
+  await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return;
+  const { requestRetry } = await import("@/lib/bot/retry");
+  await requestRetry(id);
+  revalidatePath("/admin");
+  revalidatePath("/admin/bot");
+}
+
 /** Clears the warning on a saved Telegram row so it leaves the «требует внимания» block. */
 export async function dismissTelegramWarning(formData: FormData) {
   await requireAdmin();
