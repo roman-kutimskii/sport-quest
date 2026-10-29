@@ -2,6 +2,7 @@
  * LLM access behind one small interface (spec §3.4): OpenAI-compatible chat completions via
  * CLIProxyAPI today; switching to another transport is a one-file change.
  */
+import { networkErrorCode } from "../network-error";
 
 export type LlmPart = { type: "text"; text: string } | { type: "image"; mime: string; data: Buffer };
 
@@ -110,12 +111,12 @@ export class OpenAiCompatLlm implements LlmClient {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (e) {
-      throw new LlmError(`LLM network error: ${e instanceof Error ? e.message : String(e)}`, undefined, { cause: e });
+      throw new LlmError(`LLM network error (${networkErrorCode(e)}); check LLM_BASE_URL, RU2 HTTPS access and CLIProxyAPI availability`);
     }
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
+      await res.body?.cancel();
       const retryAfterSec = Number(res.headers.get("retry-after"));
-      throw new LlmError(`LLM HTTP ${res.status}: ${text.slice(0, 300)}`, res.status, {
+      throw new LlmError(`LLM HTTP ${res.status}; check LLM_API_KEY, LLM_MODEL and the provider account in CLIProxyAPI`, res.status, {
         retryAfterMs: Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec * 1000 : undefined,
       });
     }

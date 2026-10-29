@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { inspect } from "node:util";
 import { TelegramApi, TelegramApiError, UpdateSchema, escapeHtml, isForwarded, mediaKinds, messageText, parseCommand, type TgMessage } from "./telegram-api";
 
 const GROUP = { id: -1001234567890, title: "Осенний квест", type: "supergroup", is_forum: true };
+
+it("reports proxy connection failures for Bot API and file downloads without leaking tokens", async () => {
+  const api = new TelegramApi({ token: "BOT_SECRET", proxyUrl: "http://user:PROXY_SECRET@127.0.0.1:18080",
+    fetchImpl: async () => { throw new Error("BOT_SECRET PROXY_SECRET", { cause: { code: "UND_ERR_CONNECT_TIMEOUT" } }); },
+  });
+  for (const request of [() => api.getMe(), () => api.downloadFile("photos/test.jpg")]) {
+    const error = await request().catch((e: unknown) => e);
+    expect(String(error)).toContain("UND_ERR_CONNECT_TIMEOUT");
+    expect(String(error)).toContain("Xray sidecar");
+    expect(inspect(error)).not.toMatch(/BOT_SECRET|PROXY_SECRET/);
+  }
+});
 const USER = { id: 111, is_bot: false, first_name: "Маша", last_name: "Иванова", username: "masha", language_code: "ru" };
 const photo = [
   { file_id: "s", file_unique_id: "us", file_size: 1500, width: 90, height: 120 },

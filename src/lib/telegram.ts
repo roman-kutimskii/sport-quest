@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { createRemoteJWKSet, customFetch, jwtVerify } from "jose";
 import { ProxyAgent, fetch as undiciFetch } from "undici";
+import { telegramNetworkError } from "./network-error";
 
 /**
  * Telegram Login via OpenID Connect (Authorization Code + PKCE).
@@ -17,8 +18,13 @@ export const TG_TOKEN_URL = `${TG_ISSUER}/token`;
  */
 const proxyUrl = process.env.TELEGRAM_PROXY_URL;
 const dispatcher = proxyUrl ? new ProxyAgent(proxyUrl) : undefined;
-const tgFetch = (url: string, init?: Parameters<typeof undiciFetch>[1]) =>
-  undiciFetch(url, { ...init, dispatcher }) as unknown as Promise<Response>;
+const tgFetch = async (url: string, init?: Parameters<typeof undiciFetch>[1]): Promise<Response> => {
+  try {
+    return await undiciFetch(url, { ...init, signal: init?.signal ?? AbortSignal.timeout(30_000), dispatcher }) as unknown as Response;
+  } catch (error) {
+    throw telegramNetworkError(error, !!proxyUrl);
+  }
+};
 
 const TG_JWKS = createRemoteJWKSet(new URL(`${TG_ISSUER}/.well-known/jwks.json`), {
   [customFetch]: (url, opts) => tgFetch(url, { method: opts.method, headers: opts.headers, signal: opts.signal }),
@@ -75,10 +81,13 @@ export async function exchangeCode(code: string, redirectUri: string, flow: Tele
       code_verifier: flow.verifier,
     }).toString(),
   });
-  if (!res.ok) throw new Error(`token endpoint ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) {
+    await res.body?.cancel();
+    throw new Error(`Telegram OIDC token endpoint HTTP ${res.status}; check login credentials and proxy connectivity`);
+  }
   // Telegram returns errors with HTTP 200, e.g. {"error":"invalid_grant"}.
   const body = (await res.json()) as { id_token?: string; error?: string; error_description?: string };
-  if (body.error) throw new Error(`token endpoint error: ${body.error} ${body.error_description ?? ""}`.trim());
+  if (body.error) throw new Error("Telegram OIDC rejected the authorization code; retry login and check client credentials");
   if (!body.id_token) throw new Error("no id_token in token response");
   const id_token = body.id_token;
 

@@ -23,6 +23,18 @@ function client(responses: (() => Response)[]) {
 }
 
 describe("OpenAiCompatLlm retries", () => {
+  it("redacts upstream bodies and transport causes from errors", async () => {
+    const upstream = client([() => new Response("SECRET_API_KEY", { status: 401 })]);
+    const upstreamError = await upstream.llm.complete(input).catch((e: unknown) => e);
+    expect(String(upstreamError)).toContain("LLM HTTP 401");
+    expect(String(upstreamError)).not.toContain("SECRET_API_KEY");
+    const fail = () => { throw new Error("secret-url", { cause: { code: "ECONNREFUSED" } }); };
+    const transport = client([fail, fail, fail]);
+    const error = await transport.llm.complete(input).catch((e: unknown) => e);
+    expect(String(error)).toContain("ECONNREFUSED");
+    expect(String(error)).toContain("LLM_BASE_URL");
+    expect(String(error)).not.toContain("secret-url");
+  });
   it("rides out transient 503s with backoff", async () => {
     const { llm, fetchImpl, sleeps } = client([http(503), http(503), completion("{}")]);
     await expect(llm.complete(input)).resolves.toMatchObject({ text: "{}" });

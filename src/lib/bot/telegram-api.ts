@@ -4,6 +4,7 @@
  */
 import { ProxyAgent, fetch as undiciFetch } from "undici";
 import { z } from "zod";
+import { telegramNetworkError } from "../network-error";
 
 // ---------- Types (the subset of Update we use) ----------
 
@@ -120,8 +121,12 @@ export class TelegramApi {
     this.fetchImpl = opts.fetchImpl ?? ((url, init) => undiciFetch(url as string, { ...(init as object), dispatcher: this.dispatcher }) as unknown as Promise<Response>);
   }
 
-  private request(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
-    return this.fetchImpl(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  private async request(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+    try {
+      return await this.fetchImpl(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+    } catch (error) {
+      throw telegramNetworkError(error, !!this.dispatcher);
+    }
   }
 
   async call<T>(method: string, params: Record<string, unknown> = {}, opts: { timeoutMs?: number } = {}): Promise<T> {

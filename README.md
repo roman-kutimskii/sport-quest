@@ -67,11 +67,15 @@ npm run bot:replay-shadow                                # при переход
 обнуляется после 7; бинго само по себе не делает день активным; 10 000+ шагов делают день активным.
 
 ## Деплой на VPS (tl-sport.ru)
-Продакшен — один сервер с Docker Compose: `compose.prod.yml` поднимает Postgres, приложение и Caddy
-(автоматический HTTPS для `DOMAIN`, плюс HTTP-фолбэк на голый IP).
+На сервере RU1 `compose.prod.yml` поднимает Postgres, приложение, бота, Caddy и Xray-sidecar.
+Telegram идёт через sidecar прямо на US1; LLM — через закрытый HTTPS API CLIProxyAPI на RU2.
+Топология, порты, доступ к панелям и порядок переноса описаны в [docs/infra.md](docs/infra.md).
+Чистая установка на RU1 подготовлена и заполнена свежим снимком продакшена. Пока она доступна только локально на сервере, бот выключен. Старый экземпляр продолжает работать до согласованного переключения; перед ним нужно обновить снимок и секреты CI в окружении `production`.
 
 Разово на сервере: установить Docker, создать `/opt/sport-quest/.env.prod` по образцу `.env.prod.example`
 (сгенерировать `POSTGRES_PASSWORD` и `SESSION_SECRET` через `openssl rand -hex 32`).
+Также заполнить `XRAY_*`, `TELEGRAM_PROXY_URL=http://xray:18080`, `LLM_BASE_URL` и `LLM_API_KEY`
+из приватной инфраструктурной конфигурации. Порт sidecar на хост не публикуется.
 
 ### Деплой идёт сам: push в `main` → прод
 
@@ -92,9 +96,10 @@ tl-sport.ru. `check` и `build` идут параллельно, `deploy` ждё
 Секреты репозитория: `DEPLOY_HOST` (`root@<vps>`), `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`.
 
 Что делает сам `deploy.sh` (он одинаковый для CI и для ручного запуска): rsync'ит на сервер только
-`compose.prod.yml`, `Caddyfile` и себя → дописывает `IMAGE_TAG` в `.env.prod` (чтобы ручной
-`docker compose up -d` на сервере поднял те же образы, а не случайный `latest`) → `pull` → `up -d
---remove-orphans` → **`prisma migrate deploy`** → чистит старые образы и кеш билдера.
+`compose.prod.yml`, `Caddyfile`, `infra/` и себя → дописывает `IMAGE_TAG` в `.env.prod` (чтобы ручной
+`docker compose up -d` поднял те же образы) → проверяет Compose → скачивает образы приложения,
+собирает закреплённый sidecar и ждёт готовности БД/прокси → **`prisma migrate deploy`** →
+`up -d --wait --remove-orphans` → чистит старые образы и кеш билдера.
 То есть миграции применяются на каждом деплое автоматически.
 
 Ручной запуск нужен в трёх случаях:

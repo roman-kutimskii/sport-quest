@@ -1,4 +1,35 @@
 services:
+  # Dedicated RU1 → US1 path. No host publication: only this Compose network
+  # can reach the proxy. Its only outbound is US1, with no direct fallback.
+  xray:
+    image: sport-quest-xray:26.10.21
+    build:
+      context: ./infra/xray
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:mode=1777,size=16m
+    environment:
+      XRAY_US_ADDRESS: ${XRAY_US_ADDRESS:?Set XRAY_US_ADDRESS}
+      XRAY_US_PORT: ${XRAY_US_PORT:-443}
+      XRAY_CLIENT_UUID: ${XRAY_CLIENT_UUID:?Set XRAY_CLIENT_UUID}
+      XRAY_REALITY_PUBLIC_KEY: ${XRAY_REALITY_PUBLIC_KEY:?Set XRAY_REALITY_PUBLIC_KEY}
+      XRAY_REALITY_SHORT_ID: ${XRAY_REALITY_SHORT_ID:?Set XRAY_REALITY_SHORT_ID}
+      XRAY_REALITY_SERVER_NAME: ${XRAY_REALITY_SERVER_NAME:-www.microsoft.com}
+    healthcheck:
+      test: [CMD-SHELL, 'curl -fsS --connect-timeout 5 --max-time 12 --proxy http://127.0.0.1:18080 https://oauth.telegram.org/.well-known/jwks.json >/dev/null']
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
   db:
     image: postgres:17-alpine
     restart: unless-stopped
@@ -34,8 +65,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      xray:
+        condition: service_started
     expose:
       - "3000"
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:3000/api/health", {signal: AbortSignal.timeout(4000)}).then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # Telegram group bot: long-polls Telegram through the proxy, files reports via the LLM,
   # announces website reports and posts the weekly digest. Runs on the tools image (full source).
@@ -65,6 +104,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      xray:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, --import, tsx, scripts/bot-healthcheck.ts]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
 
   # One-off tooling (migrations, seed) from the full build stage:
   #   docker compose -f compose.prod.yml --env-file .env.prod run --rm tools npx prisma migrate deploy
@@ -89,6 +136,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      xray:
+        condition: service_started
 
   caddy:
     image: caddy:2-alpine
