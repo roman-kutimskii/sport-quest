@@ -1,6 +1,6 @@
 # Infrastructure
 
-Deployment status: 2026-10-29. RU1 has a clean installation populated from a fresh production snapshot. Its app, database, disabled bot and sidecar are healthy. The app is private on `127.0.0.1:13000`; public cutover is pending approval. The old instance at `82.146.60.122` is still running. The user explicitly reauthorized read-only inspection and migration preparation; do not stop or alter the old instance before cutover approval. DNS for `tl-sport.ru` already points to RU1, but public web ports have not been activated. Do not push this branch to `main` until the final snapshot and CI destination are ready.
+Migration release: 2026-10-29. RU1 is the production target for the app, database, bot, Caddy and Telegram sidecar. Preparation used a clean installation, a fresh production snapshot and private validation on `127.0.0.1:13000`. The user approved final cutover: freeze the old app/bot, refresh the data, install the dedicated CI key, update GitHub's production environment and release through `main`. The old host `82.146.60.122` is retained for rollback. Do not restart its bot while the RU1 bot is live. DNS for `tl-sport.ru` already points to RU1. Runtime completion and verification are recorded at `/opt/network/app-cutover-complete` and in the private Network workspace; the preparation snapshot alone is not proof of a completed cutover.
 
 ## Topology
 
@@ -61,7 +61,7 @@ RU1 also permits UDP 443 for Caddy HTTP/3. The nftables table `inet network_guar
 | RU2 `/opt/cliproxyapi/state` | Provider authentication and management UI state |
 | RU2 `/etc/caddy/Caddyfile` | Subscription/API HTTPS endpoints |
 | All `/etc/network-firewall.nft` | Persistent rules applied by `network-guard.service` |
-| RU1 `/opt/sport-quest/.env.prod` | Fresh database/session secrets, preserved Telegram app settings, new proxy/API routes; bot off pending cutover |
+| RU1 `/opt/sport-quest/.env.prod` | Fresh database/session secrets, preserved Telegram app settings, new proxy/API routes and the active uploads volume; enable the bot only after the final data refresh |
 | RU1 `/opt/sport-quest/compose.prepare.yml` | Private preparation overlay; app bound only to loopback, public proxy and worker selected explicitly |
 
 From the Network folder, run `python3 scripts/tunnel.py start`. The panel uses local port 25843 and its private path; CLIProxyAPI management is at `http://127.0.0.1:8317/management.html`. The helper also forwards provider OAuth callback ports 1455, 51121, 54545 and 8085. Stop it with `python3 scripts/tunnel.py stop`. Never expose these management ports publicly.
@@ -82,13 +82,15 @@ The sidecar healthcheck requests Telegram JWKS through the proxy. The bot waits 
 
 ## Deployment and restoration
 
-A push to `main` runs production deployment. Keep the work on `codex/chained-vpn-infra` until cutover approval. GitHub deploy secrets are scoped to the **production environment**, not repository-level secrets; their target has not yet been changed.
+A push to `main` runs production deployment. GitHub deploy secrets are scoped to the **production environment**, not repository-level secrets. The approved migration installs a dedicated RU1-only deploy key and updates the target before pushing the release.
 
 Preparation created a fresh database and session secret, applied every Prisma migration, and seeded only the quest without sample participants. A fresh read-only production snapshot was then restored into a separate database and validated. The clean database was preserved as `sportquest_clean_<snapshot timestamp>` before swapping the restored database into the private installation. Upload archives are validated for safe paths and every restored file is checked against the current source SHA-256 manifest. The existing upload archive was reused only after all of its files matched the live source byte-for-byte.
 
 The restored site's homepage and database health endpoint return 200. Every local proof reference resolves to a restored file, and anonymous proof requests correctly return 401. Telegram login initiation redirects to Telegram with the correct callback, PKCE and secure HTTP-only cookies. Inside the new bot container, `getMe`, Telegram OIDC JWKS and the US exit check pass; a synthetic activity message is correctly classified through CLIProxyAPI without writing a report or sending a message. Actual human login remains a post-cutover check. Local lint and all 155 tests pass; app/tools/sidecar Docker builds passed on RU1.
 
-For final cutover, obtain approval to pause old app/bot writers, take a final consistent snapshot and refresh RU1. Preserve the prior database/uploads for rollback. Install the dedicated RU1 CI key, update `DEPLOY_HOST`, `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS` in GitHub's `production` environment, then release through the normal `main` flow. Publish Caddy on RU1 and activate only the new bot. The A record is already RU1 (`178.236.242.177`), so no further DNS change is required. Keep the old server intact until acceptance.
+The approved final cutover pauses old app/bot writers to take a final consistent snapshot and refresh RU1. Preserve the prior database/uploads for rollback. Install the dedicated RU1 CI key, update `DEPLOY_HOST`, `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS` in GitHub's `production` environment, then release through the normal `main` flow. Publish Caddy on RU1 and activate only the new bot. The A record is already RU1 (`178.236.242.177`), so no further DNS change is required. Keep the old server intact until acceptance.
+
+`UPLOADS_VOLUME` selects the restored uploads volume (default `sport-quest_uploads`). A final refresh restores into a new named volume and a new database; the previous database and volume remain available for rollback. Back up the volume selected by the deployed Compose configuration, rather than assuming the default name.
 
 The private Network workspace contains `clean-app.py`, `snapshot-current-production.py`, `restore-app.py` and `verify-restored-app.py`, plus the restore evidence and rollback configuration. These preparation scripts do not perform public cutover. One-off Compose commands disable stdin so they cannot consume the rest of an SSH-fed shell script.
 

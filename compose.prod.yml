@@ -159,5 +159,6 @@ services:
 volumes:
   pgdata:
   uploads:
+    name: ${UPLOADS_VOLUME:-sport-quest_uploads}
   caddy_data:
   caddy_config:

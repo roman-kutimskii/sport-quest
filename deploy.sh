@@ -28,7 +28,7 @@ $SSH "$HOST" "cd $DIR && export IMAGE_TAG=$TAG \
   && docker compose -f compose.prod.yml --profile tools --env-file .env.prod pull --quiet --ignore-buildable \
   && docker compose -f compose.prod.yml --env-file .env.prod build xray \
   && docker compose -f compose.prod.yml --env-file .env.prod up -d --wait --wait-timeout 90 db xray \
-  && docker compose -f compose.prod.yml --env-file .env.prod run --rm tools npx prisma migrate deploy \
+  && docker compose -f compose.prod.yml --env-file .env.prod run --rm -T --interactive=false tools npx prisma migrate deploy \
   && docker compose -f compose.prod.yml --env-file .env.prod up -d --remove-orphans --wait --wait-timeout 180 \
   && docker image prune -f >/dev/null \
   && docker builder prune -f --filter until=168h >/dev/null \
