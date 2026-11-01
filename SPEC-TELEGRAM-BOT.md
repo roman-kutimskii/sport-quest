@@ -133,7 +133,8 @@ database:
 2. Top-5 by total 🎃 with the week's delta (`+7`).
 3. Most active this week: participants with the most active days (ties listed).
 4. Streak milestones reached this week (3/5/7) and who currently holds «Неуязвимый».
-5. Bingo closed this week: task → names; anyone who completed 9/9.
+5. Bingo closed this week: task → names; only participants who completed 9/9 this week
+   (by the date of their final approved task), without repeating past completions.
 6. Steps: week total and the top-3 steppers.
 7. Participation: «N из M участников отметились на этой неделе».
 

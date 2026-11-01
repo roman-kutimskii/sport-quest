@@ -42,6 +42,7 @@ export type DigestData = {
   streakMilestones: { name: string; type: StreakType; date: string }[];
   invulnerable: string[];
   bingoClosed: { key: string; title: string; emoji: string; names: string[] }[];
+  /** Completed the full card this week, not all-time holders. */
   bingoMasters: string[];
   steps: { weekTotal: number; top: { name: string; steps: number }[] };
   participation: { active: number; total: number };
@@ -108,7 +109,7 @@ export function computeDigest(input: DigestInput): DigestData {
   })).filter((b) => b.names.length);
 
   const bingoMasters = rows
-    .filter((r) => r.now.bingoCompleted.length >= BINGO_TASKS.length)
+    .filter((r) => r.now.bingoCompleted.length >= BINGO_TASKS.length && r.now.bingoCompleted.some((b) => inWeek(b.date)))
     .map((r) => r.u.name)
     .sort(byName);
 
@@ -164,7 +165,7 @@ export function renderDigest(d: DigestData, opts?: { comment?: string | null; si
   out.push("🎯 Бинго");
   if (d.bingoClosed.length) for (const b of d.bingoClosed) out.push(`${b.emoji} «${b.title}» — ${list(b.names)}`);
   else out.push(EMPTY);
-  if (d.bingoMasters.length) out.push(`🌟 Все 9/9: ${list(d.bingoMasters)}`);
+  if (d.bingoMasters.length) out.push(`🌟 Закрыли все 9/9 на этой неделе: ${list(d.bingoMasters)}`);
 
   out.push("");
   out.push("🚶 Шаги");

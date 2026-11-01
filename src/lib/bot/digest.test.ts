@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { ScoringReport } from "@/lib/scoring";
+import { BINGO_TASKS } from "@/lib/bingo";
+import { addDays, type ScoringReport } from "@/lib/scoring";
 import { computeDigest, renderDigest, type DigestInput, type DigestUser } from "./digest";
 
 let seq = 0;
 const act = (date: string, steps?: number): ScoringReport => ({ id: `r${++seq}`, kind: "ACTIVITY", date, status: "APPROVED", steps: steps ?? null });
 const bingo = (date: string, key: string): ScoringReport => ({ id: `r${++seq}`, kind: "BINGO", date, status: "APPROVED", bingoKey: key });
+const fullBingo = (completedOn: string): ScoringReport[] =>
+  BINGO_TASKS.map((task, i) => bingo(addDays(completedOn, i - BINGO_TASKS.length + 1), task.key));
 const stepsOnly = (date: string, steps: number): ScoringReport => ({ id: `r${++seq}`, kind: "STEPS", date, status: "APPROVED", steps });
 const user = (name: string, reports: ScoringReport[], isActive = true): DigestUser => ({
   id: name,
@@ -78,6 +81,30 @@ describe("computeDigest", () => {
     expect(d.bingoMasters).toEqual([]);
   });
 
+  it("lists only new bingo masters, including Monday and Sunday completions", () => {
+    const d = computeDigest({
+      ...base,
+      weekMonday: "2026-09-14",
+      weekSunday: "2026-09-20",
+      today: "2026-09-20",
+      cutoff: "2026-09-20T20:00",
+      users: [
+        user("Вера", [...fullBingo("2026-09-13"), act("2026-09-14"), bingo("2026-09-15", "early")]),
+        user("Боря", fullBingo("2026-09-20")),
+        user("Аня", fullBingo("2026-09-14")),
+        user("Гриша", fullBingo("2026-09-21")),
+        user("Даня", fullBingo("2026-09-15"), false),
+      ],
+    });
+    expect(d.bingoMasters).toEqual(["Аня", "Боря"]);
+  });
+
+  it.each(["PENDING", "REJECTED"] as const)("does not announce 9/9 when the final task is %s", (status) => {
+    const reports = fullBingo("2026-09-13");
+    reports[reports.length - 1].status = status;
+    expect(computeDigest({ ...base, users: [user("Аня", reports)] }).bingoMasters).toEqual([]);
+  });
+
   it("steps", () => {
     expect(d.steps).toEqual({ weekTotal: 57000, top: [{ name: "Боря", steps: 35000 }, { name: "Аня", steps: 22000 }] });
   });
@@ -100,6 +127,16 @@ describe("computeDigest", () => {
 });
 
 describe("renderDigest", () => {
+  it("announces a full bingo in its completion week without repeating it next week", () => {
+    const users = [user("Аня", [...fullBingo("2026-09-13"), act("2026-09-15")])];
+    const thisWeek = renderDigest(computeDigest({ ...base, users }));
+    const nextWeek = renderDigest(computeDigest({
+      ...base, weekMonday: "2026-09-14", weekSunday: "2026-09-20", today: "2026-09-20", cutoff: "2026-09-20T20:00", users,
+    }));
+    expect(thisWeek).toContain("🌟 Закрыли все 9/9 на этой неделе: Аня");
+    expect(nextWeek).not.toContain("9/9");
+  });
+
   it("renders every section", () => {
     const s = renderDigest(computeDigest({ ...base, users }), { comment: "Аня, ты машина!" });
     expect(s).toContain("Итоги недели 2 (по состоянию на 13 сен 20:00)");
