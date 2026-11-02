@@ -1,8 +1,9 @@
 /**
  * LLM access behind one small interface (spec §3.4): OpenAI-compatible chat completions via
- * CLIProxyAPI today; switching to another transport is a one-file change.
+ * the official OpenAI API; switching to another transport is a one-file change.
  */
 import { networkErrorCode } from "../network-error";
+import { ProxyAgent, fetch as undiciFetch } from "undici";
 
 export type LlmPart = { type: "text"; text: string } | { type: "image"; mime: string; data: Buffer };
 
@@ -52,14 +53,17 @@ export class OpenAiCompatLlm implements LlmClient {
   private readonly random: () => number;
 
   constructor(opts: {
-    baseUrl: string; apiKey: string; model: string; timeoutMs?: number;
+    baseUrl: string; apiKey: string; model: string; timeoutMs?: number; proxyUrl?: string | null;
     fetchImpl?: typeof fetch; sleepImpl?: (ms: number) => Promise<void>; random?: () => number;
   }) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.apiKey = opts.apiKey;
     this.model = opts.model;
     this.timeoutMs = opts.timeoutMs ?? 40_000;
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    const dispatcher = opts.proxyUrl ? new ProxyAgent(opts.proxyUrl) : undefined;
+    this.fetchImpl = opts.fetchImpl ?? (dispatcher
+      ? ((url, init) => undiciFetch(url as string, { ...(init as object), dispatcher }) as unknown as Promise<Response>)
+      : fetch);
     this.sleepImpl = opts.sleepImpl ?? sleep;
     this.random = opts.random ?? Math.random;
   }
@@ -72,7 +76,8 @@ export class OpenAiCompatLlm implements LlmClient {
   async complete(input: { system: string; user: LlmPart[]; json?: boolean }): Promise<{ text: string; raw?: unknown }> {
     const body = {
       model: this.model,
-      temperature: 0,
+      // Terra rejects temperature when reasoning is enabled.
+      ...(this.model === "gpt-6.1-terra" ? { reasoning_effort: "medium" } : { temperature: 0 }),
       messages: [
         { role: "system", content: input.system },
         {
@@ -111,12 +116,12 @@ export class OpenAiCompatLlm implements LlmClient {
         signal: AbortSignal.timeout(this.timeoutMs),
       });
     } catch (e) {
-      throw new LlmError(`LLM network error (${networkErrorCode(e)}); check LLM_BASE_URL, RU2 HTTPS access and CLIProxyAPI availability`);
+      throw new LlmError(`LLM network error (${networkErrorCode(e)}); check LLM_BASE_URL, LLM_PROXY_URL and OpenAI API connectivity`);
     }
     if (!res.ok) {
       await res.body?.cancel();
       const retryAfterSec = Number(res.headers.get("retry-after"));
-      throw new LlmError(`LLM HTTP ${res.status}; check LLM_API_KEY, LLM_MODEL and the provider account in CLIProxyAPI`, res.status, {
+      throw new LlmError(`LLM HTTP ${res.status}; check OPENAI_API_KEY, LLM_MODEL and OpenAI API account access`, res.status, {
         retryAfterMs: Number.isFinite(retryAfterSec) && retryAfterSec > 0 ? retryAfterSec * 1000 : undefined,
       });
     }

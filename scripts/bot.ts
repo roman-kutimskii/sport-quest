@@ -462,7 +462,7 @@ async function main(): Promise<void> {
   await setState(STATE_KEYS.botUsername, me.username ?? null);
   await registerCommands(deps).catch((e) => logError("setMyCommands failed (menu may be stale)", e));
   log(`started as @${me.username ?? me.id}, mode=${cfg.mode}, group=${cfg.groupChatId ?? "(not set — use /id)"}${cfg.groupThreadId ? `/${cfg.groupThreadId}` : ""}, llm=${cfg.llm.model}, proxy=${cfg.proxyUrl ? "on" : "off"}`);
-  if (!cfg.llm.baseUrl || !cfg.llm.apiKey) logError("LLM_BASE_URL / LLM_API_KEY not set — message classification will fail");
+  if (!cfg.llm.baseUrl || !cfg.llm.apiKey) logError("LLM_BASE_URL / OPENAI_API_KEY not set — message classification will fail");
 
   const loops = [
     receiveLoop(deps),

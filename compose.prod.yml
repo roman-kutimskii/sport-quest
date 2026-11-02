@@ -92,9 +92,10 @@ services:
       TELEGRAM_GROUP_CHAT_ID: ${TELEGRAM_GROUP_CHAT_ID:-}
       TELEGRAM_GROUP_THREAD_ID: ${TELEGRAM_GROUP_THREAD_ID:-}
       TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
-      LLM_BASE_URL: ${LLM_BASE_URL:-}
-      LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-gemini-3.8-flash-high}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-6.1-terra}
+      LLM_PROXY_URL: ${LLM_PROXY_URL:-}
       BOT_MODE: ${BOT_MODE:-off}
       DIGEST_WEEKDAY: ${DIGEST_WEEKDAY:-0}
       DIGEST_HOUR: ${DIGEST_HOUR:-20}
@@ -130,6 +131,10 @@ services:
       TELEGRAM_GROUP_CHAT_ID: ${TELEGRAM_GROUP_CHAT_ID:-}
       TELEGRAM_GROUP_THREAD_ID: ${TELEGRAM_GROUP_THREAD_ID:-}
       TELEGRAM_PROXY_URL: ${TELEGRAM_PROXY_URL:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-6.1-terra}
+      LLM_PROXY_URL: ${LLM_PROXY_URL:-}
       BOT_MODE: ${BOT_MODE:-off}
     volumes:
       - uploads:/data/uploads

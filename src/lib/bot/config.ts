@@ -26,9 +26,10 @@ export const botConfig = () => ({
   proxyUrl: optString("TELEGRAM_PROXY_URL"),
   mode: parseMode(process.env.BOT_MODE),
   llm: {
-    baseUrl: (process.env.LLM_BASE_URL ?? "").replace(/\/+$/, ""),
-    apiKey: process.env.LLM_API_KEY ?? "",
-    model: process.env.LLM_MODEL?.trim() || "gemini-3.8-flash-high",
+    baseUrl: (process.env.LLM_BASE_URL?.trim() || "https://api.openai.com").replace(/\/+$/, ""),
+    apiKey: process.env.OPENAI_API_KEY?.trim() || "",
+    model: process.env.LLM_MODEL?.trim() || "gpt-6.1-terra",
+    proxyUrl: optString("LLM_PROXY_URL"),
   },
   digest: {
     weekday: intEnv("DIGEST_WEEKDAY", 0),

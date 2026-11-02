@@ -35,7 +35,7 @@ Seed создаёт квест, админа «Роман» и трёх тест
 ## Telegram-бот
 Спецификация — [SPEC-TELEGRAM-BOT.md](SPEC-TELEGRAM-BOT.md). Отдельный процесс `scripts/bot.ts` (в проде — сервис `bot`
 в `compose.prod.yml` на образе `-tools`) long-poll'ит Telegram через `TELEGRAM_PROXY_URL` (вебхуки с VPS не работают),
-классифицирует сообщения группы через LLM (`LLM_BASE_URL`, CLIProxyAPI) и записывает отчёты через общий
+классифицирует сообщения группы через LLM (`LLM_BASE_URL`, официальный OpenAI API) и записывает отчёты через общий
 `createReport` из `src/lib/reports/create.ts`. Веб-приложение с Telegram не общается вовсе. Бот молчалив: обычный
 зачёт отмечается реакцией на исходном сообщении (🎃, либо 👌 если день уже был засчитан), а полноценный ответ уходит,
 только если в нём есть кнопка или объяснение. Отчёты с сайта не анонсируются. Раз в неделю (вс 20:00 МСК) — дайджест.
@@ -68,14 +68,21 @@ npm run bot:replay-shadow                                # при переход
 
 ## Деплой на VPS (tl-sport.ru)
 На сервере RU1 `compose.prod.yml` поднимает Postgres, приложение, бота, Caddy и Xray-sidecar.
-Telegram идёт через sidecar прямо на US1; LLM — через закрытый HTTPS API CLIProxyAPI на RU2.
+Telegram и HTTPS-соединение с официальным API OpenAI идут через sidecar на US1.
 Топология, порты, доступ к панелям и порядок переноса описаны в [docs/infra.md](docs/infra.md).
 Перенос выполняется через чистую установку и проверку свежего снимка данных. Перед публикацией старые app/bot останавливаются, данные обновляются ещё раз, а секреты CI в окружении `production` переключаются на RU1. Старый сервер и предыдущие тома сохраняются для отката; одновременно работает только один бот.
 
 Разово на сервере: установить Docker, создать `/opt/sport-quest/.env.prod` по образцу `.env.prod.example`
 (сгенерировать `POSTGRES_PASSWORD` и `SESSION_SECRET` через `openssl rand -hex 32`).
-Также заполнить `XRAY_*`, `TELEGRAM_PROXY_URL=http://xray:18080`, `LLM_BASE_URL` и `LLM_API_KEY`
-из приватной инфраструктурной конфигурации. Порт sidecar на хост не публикуется.
+Также заполнить `XRAY_*` из приватной инфраструктурной конфигурации и `TELEGRAM_PROXY_URL=http://xray:18080`.
+Для LLM задать `LLM_BASE_URL=https://api.openai.com`, `LLM_MODEL=gpt-6.1-terra` и `OPENAI_API_KEY`
+из OpenAI API Platform (ключ CLIProxyAPI не подходит), а также `LLM_PROXY_URL=http://xray:18080`.
+Порт sidecar на хост не публикуется; TLS устанавливается с `api.openai.com`, без CLIProxyAPI.
+При переходе с CLIProxyAPI обновить старые `LLM_BASE_URL` и `LLM_MODEL` в `.env.prod`: они
+переопределяют значения по умолчанию в Compose. Перед выкладкой проверить доступ к OpenAI
+с сервера и выполнить `npm run bot:eval` с новым ключом; импорт и replay для проверки не нужны.
+Проверка 2026-11-02: прямой запрос с RU1 отклонён OpenAI, но запрос Terra через существующий
+sidecar → US1 завершился HTTP 200. Приложение и бот остаются на RU1; подробности в [docs/infra.md](docs/infra.md).
 
 ### Деплой идёт сам: push в `main` → прод
 

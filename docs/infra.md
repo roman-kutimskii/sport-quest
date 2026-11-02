@@ -11,8 +11,8 @@ flowchart LR
     CLI[RU2: CLIProxyAPI] -->|HTTP proxy on loopback| R2
     APP[RU1: sport-quest app + bot] -->|HTTP proxy on Docker network| SIDE[RU1: Xray sidecar]
     SIDE -->|VLESS + REALITY| US
-    APP -->|HTTPS + API key, RU1 only| CLI
-    US --> TG[Telegram and provider APIs]
+    US --> TG[Telegram APIs]
+    US --> OAI[Official OpenAI API: api.openai.com]
 ```
 
 US1 is `89.125.43.209`, RU1 is `178.236.242.177`, and RU2 is `178.236.242.184`. Management panels exist only on RU2. The default VPN policy sends all destinations through US1. CLIProxyAPI and the Telegram sidecar have no direct fallback.
@@ -74,7 +74,15 @@ To add a VPN client, open the private 3x-ui panel, edit the existing `vpn-entry`
 
 Set `TELEGRAM_PROXY_URL=http://xray:18080`. The sidecar reads `XRAY_US_ADDRESS`, `XRAY_US_PORT`, `XRAY_CLIENT_UUID`, `XRAY_REALITY_PUBLIC_KEY`, `XRAY_REALITY_SHORT_ID` and `XRAY_REALITY_SERVER_NAME` from the environment. It generates its config in a tmpfs and runs without root privileges or host-published ports.
 
-Use `LLM_BASE_URL=https://llm.roman-kutimskii.ru:9443` (without `/v1`), the private API key, and `LLM_MODEL=gemini-3.8-flash-high`. The application appends the API path. A completion with that model succeeded from RU1 through CLIProxyAPI; the provider may return a normalized model name.
+The repository now defaults to the official OpenAI API: `LLM_BASE_URL=https://api.openai.com` (without `/v1`), `OPENAI_API_KEY` from OpenAI API Platform, and `LLM_MODEL=gpt-6.1-terra`. The application appends `/v1/chat/completions`, sends image data URIs and JSON mode, and uses medium reasoning without temperature. The old `LLM_API_KEY` is deliberately not reused. Set `LLM_PROXY_URL=http://xray:18080` on RU1: the HTTP proxy establishes a CONNECT tunnel through the existing US1 path, while TLS and API authentication terminate at OpenAI. A failed proxy request is retried through the same route; there is no direct fallback.
+
+For rollout, replace the old `LLM_BASE_URL` and `LLM_MODEL` overrides in `/opt/sport-quest/.env.prod`, supply `OPENAI_API_KEY`, and set `LLM_PROXY_URL`. Both the bot and one-off tools receive these settings. Back up `.env.prod` and `compose.prod.yml` before changing them; keep the backup with the previous image tag for rollback. The old CLIProxyAPI service on RU2 is not used by the bot after this change.
+
+Preflight (2026-11-02): direct requests from RU1 return HTTP 403 (`unsupported_country_region_territory`). An authenticated request from the running RU1 bot container through its existing sidecar → US1 route returned HTTP 200 and a valid JSON completion from `gpt-6.1-terra` at the official endpoint. No application or database relocation is needed.
+
+The final local Terra eval passed all 66/66 cases, including every image fixture, date, step count and bingo field (report precision and recall 100% on this set). The prompt clarifies existing rules for completed construction work and food-only captions after a workout. Scoring thresholds are unchanged. Local lint and all 164 unit tests pass; source type checking passes when excluding stale `.next/dev/types` references to removed gallery/vote pages.
+
+The pre-release configuration backup is `/opt/sport-quest/backups/openai-terra-20261102T115716Z/` on RU1. It contains the old `.env.prod` and `compose.prod.yml`, including image tag `d7cf1ca620e66f74e75b68d19e59282b2f136326`. A provider rollback must restore both configuration files before recreating the bot; changing only `IMAGE_TAG` would retain incompatible OpenAI environment settings.
 
 The code uses an HTTP proxy dispatcher. Bot API calls and Telegram file downloads need `api.telegram.org`; OIDC token/JWKS requests need `oauth.telegram.org`. Direct requests to these endpoints timed out from both RU hosts during inspection, while US egress worked. These are measurements from these VMs, not a claim about every Russian provider. Browser-side Telegram authentication still happens on the user's device.
 

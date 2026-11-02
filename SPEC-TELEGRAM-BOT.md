@@ -167,11 +167,11 @@ Messages in any chat other than the configured group are ignored; a private mess
    verifies the assumption against a real login.
 3. **Single web replica, no job runner.** Next.js has no scheduler. The spec adds a worker process
    rather than hiding a poller inside the web server (see 4).
-4. **LLM access** is via CLIProxyAPI, OpenAI-compatible, reachable from the VPS **[decided]**.
-   Endpoint `POST {LLM_BASE_URL}/v1/chat/completions`, `Authorization: Bearer {LLM_API_KEY}`,
-   model `gemini-3.8-flash-high`, images as `image_url` data URIs **[decided: vision on]**.
-   CLIProxyAPI also exposes Gemini-native `/v1beta/models/{model}:generateContent`; keep the client
-   behind one small interface so switching is a one-file change.
+4. **LLM access** uses the official OpenAI API at `https://api.openai.com` **[decided]**.
+   Endpoint `POST {LLM_BASE_URL}/v1/chat/completions`, `Authorization: Bearer {OPENAI_API_KEY}`,
+   model `gpt-6.1-terra`, images as `image_url` data URIs **[decided: vision on]**.
+   Use `reasoning_effort: "medium"` without `temperature`; keep the client behind one small interface.
+   Production sets `LLM_PROXY_URL=http://xray:18080` for HTTPS CONNECT through US1; the API host remains `api.openai.com`.
 
 ## 4. Architecture
 
@@ -179,7 +179,7 @@ Messages in any chat other than the configured group are ignored; a private mess
 Telegram ──(proxy)── bot worker ──── Postgres ──── Next.js web app
                         │  ▲                          │
                         │  └── Outbox rows ◄──────────┘  (website report created)
-                        └──► CLIProxyAPI (LLM)
+                        └──► OpenAI API (LLM)
 ```
 
 - **`bot` worker**: a new compose service running the existing `-tools` image with
@@ -270,8 +270,9 @@ The thresholds are constants in one file and are tuned against the eval set (sec
 
 ### 5.4 Cost and limits
 
-Gemini Flash with 1–3 small images: well under $0.01 per message; ≤ 50 participants × a few posts a
-day is negligible. Worker-side guard: max 20 LLM calls per minute; over the limit messages wait in
+GPT-6.1 Terra usage is billed by OpenAI; text/image input and reasoning/output tokens determine
+actual cost. Measure representative requests before estimating a monthly budget.
+Worker-side guard: max 20 LLM calls per minute; over the limit messages wait in
 the queue (they're processed in order, the date comes from the message). Request timeout 40 s,
 two retries with backoff for 5xx/429/network errors, then `FAILED` and silence (the admin list in
 7.2 shows it; the author can use the site).
@@ -380,7 +381,8 @@ Reports created by the bot show a small Telegram icon and a link to the source m
 | `TELEGRAM_GROUP_CHAT_ID` | Numeric id of the group (negative). Obtained once via `/id` (a hidden command that replies with the chat id when the variable is unset). |
 | `TELEGRAM_GROUP_THREAD_ID` | Optional; topic id if the group is a forum. The digest goes there; replies and reactions go to the original message. |
 | `TELEGRAM_PROXY_URL` | Existing. Now also used by the worker. |
-| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | CLIProxyAPI; model `gemini-3.8-flash-high`. |
+| `LLM_BASE_URL`, `OPENAI_API_KEY`, `LLM_MODEL` | Official OpenAI API; model `gpt-6.1-terra`. |
+| `LLM_PROXY_URL` | Optional outbound HTTP CONNECT proxy; production uses `http://xray:18080`. No direct fallback on proxy failure. |
 | `BOT_MODE` | `off` \| `shadow` \| `live`. Shadow = classify and record, never write reports or send messages. |
 | `DIGEST_WEEKDAY`, `DIGEST_HOUR` | Default `0` (Sunday), `20`, Europe/Moscow. |
 | `DIGEST_LLM_COMMENT` | `0`/`1`, default `0`. |

@@ -6,6 +6,34 @@ const completion = (content: string) => () => new Response(JSON.stringify({ choi
 const http = (status: number, headers?: Record<string, string>) => () => new Response("auth_unavailable", { status, headers });
 const input = { system: "s", user: [{ type: "text" as const, text: "u" }] };
 
+describe("OpenAI request compatibility", () => {
+  it("sends Terra JSON and image requests without unsupported sampling parameters", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(completion('{"ok":true}')());
+    const llm = new OpenAiCompatLlm({
+      baseUrl: "https://api.openai.com/", apiKey: "test-key", model: "gpt-6.1-terra", fetchImpl,
+    });
+    await expect(llm.complete({
+      system: "Return JSON", json: true,
+      user: [{ type: "text", text: "Read this image" }, { type: "image", mime: "image/png", data: Buffer.from("image") }],
+    })).resolves.toMatchObject({ text: '{"ok":true}' });
+    const [url, options] = fetchImpl.mock.calls[0];
+    expect(url).toBe("https://api.openai.com/v1/chat/completions");
+    expect(options?.headers).toMatchObject({ Authorization: "Bearer test-key" });
+    const body = JSON.parse(options?.body as string);
+    expect(body).toMatchObject({
+      model: "gpt-6.1-terra", reasoning_effort: "medium", response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: "Return JSON" },
+        { role: "user", content: [
+          { type: "text", text: "Read this image" },
+          { type: "image_url", image_url: { url: "data:image/png;base64,aW1hZ2U=" } },
+        ] },
+      ],
+    });
+    expect(body).not.toHaveProperty("temperature");
+  });
+});
+
 function client(responses: (() => Response)[]) {
   const fetchImpl = vi.fn(async () => {
     const next = responses.shift();

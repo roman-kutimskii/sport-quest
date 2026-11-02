@@ -119,7 +119,7 @@ function accuracy(results: Result[], field: string, get: (r: Result) => [expecte
 async function main() {
   const cfg = botConfig();
   if (!cfg.llm.baseUrl || !cfg.llm.apiKey) {
-    console.error("LLM_BASE_URL / LLM_API_KEY are not set");
+    console.error("LLM_BASE_URL / OPENAI_API_KEY are not set");
     process.exit(1);
   }
   // Empty arguments are dropped: an empty filter would match every case.
