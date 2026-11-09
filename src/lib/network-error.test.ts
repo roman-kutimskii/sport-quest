@@ -9,7 +9,7 @@ describe("safe network diagnostics", () => {
     });
     const safe = telegramNetworkError(original, true);
     expect(safe.message).toContain("ECONNREFUSED");
-    expect(safe.message).toContain("Xray sidecar");
+    expect(safe.message).toContain("the Xray sidecar and connectivity to RU2");
     expect(inspect(safe)).not.toMatch(/SECRET|PASSWORD/);
   });
 

@@ -1,6 +1,6 @@
 services:
-  # Dedicated RU1 → US1 path. No host publication: only this Compose network
-  # can reach the proxy. Its only outbound is US1, with no direct fallback.
+  # The proxy is reachable only within this Compose network.
+  # The production sidecar connects to the RU2 entry.
   xray:
     image: sport-quest-xray:26.10.21
     build:

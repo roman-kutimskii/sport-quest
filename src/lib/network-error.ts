@@ -18,6 +18,6 @@ export function networkErrorCode(error: unknown): string {
 
 export function telegramNetworkError(error: unknown, proxyConfigured: boolean): Error {
   return new Error(`Telegram connection failed (${networkErrorCode(error)}); ${proxyConfigured
-    ? "check TELEGRAM_PROXY_URL, the Xray sidecar and US1 connectivity"
+    ? "check TELEGRAM_PROXY_URL, the Xray sidecar and connectivity to RU2"
     : "TELEGRAM_PROXY_URL is unset; configure the Telegram proxy"}`);
 }

@@ -6,79 +6,58 @@ Migration release: 2026-10-29. RU1 is the production target for the app, databas
 
 ```mermaid
 flowchart LR
-    K[Karing devices] -->|VLESS + REALITY / Vision| R2[RU2: 3x-ui entry]
-    R2 -->|VLESS + REALITY| US[US1: plain Xray]
-    CLI[RU2: CLIProxyAPI] -->|HTTP proxy on loopback| R2
-    APP[RU1: sport-quest app + bot] -->|HTTP proxy on Docker network| SIDE[RU1: Xray sidecar]
-    SIDE -->|VLESS + REALITY| US
-    US --> TG[Telegram APIs]
-    US --> OAI[Official OpenAI API: api.openai.com]
+    K[Karing devices] -->|VLESS + REALITY / Vision| R2[RU2 VPN entry]
+    APP[RU1 Sport Quest app and bot] -->|Private Docker HTTP proxy| SIDE[RU1 Xray sidecar]
+    SIDE -->|VLESS + REALITY / Vision| R2
+    R2 -->|TLS-verified Hysteria| EXIT[45.86.68.186]
+    EXIT --> TG[Telegram APIs]
+    EXIT --> OAI[Official OpenAI API]
 ```
 
-US1 is `89.125.43.209`, RU1 is `178.236.242.177`, and RU2 is `178.236.242.184`. Management panels exist only on RU2. The default VPN policy sends all destinations through US1. CLIProxyAPI and the Telegram sidecar have no direct fallback.
-
-The RU2 entry runs a compatibility build from official Xray **26.7.28** source, compiled with **Go 1.26.10** and dependency security fixes. The source commit, dependency pins and executable SHA256 are recorded in the private Network folder's `entry-core.json`. Its REALITY target/SNI is `www.cloudflare.com`, with explicit `minClientVer=1.0.0`. Xray 26.10.21 remains on US1 and in the RU1 sidecar; those two server-to-server connections use `www.microsoft.com`.
-
-This entry pin is intentional: the tested sing-box 1.12.22 client fails REALITY authentication with Xray 26.9.8+, including 26.10.21. An isolated and then live sing-box test with the compatibility build exited through US1. A contemporary Xray client also passed. The user requested returning to REALITY after a TLS trial; the active subscription contains REALITY. On 2026-10-29, the user confirmed Karing works with the fresh native VLESS subscription and reports exit IP `89.125.43.209`.
-
-The compatibility binary's Go vulnerability scan reported no findings for linked packages. The remaining module-level OpenPGP notice concerns an unlinked package. This is a maintained local build, not an upstream security-support promise; recheck advisories and client compatibility before upgrading it.
+RU1 is `178.236.242.177`, and RU2 is `178.236.242.184`. RU2 runs Xray **26.7.28** with pinned Go and dependency updates for sing-box compatibility. The Network workspace's `entry-core.json` records the source, toolchain, and SHA-256. The REALITY target is `www.cloudflare.com:443`, the advertised SNI is `cloudflare.com`, and the client minimum is `1.0.0`. The RU1 sidecar runs Xray 26.10.21 and uses the same RU2 entry as the device profile.
 
 ## Ports
 
-| Host | TCP port | Allowed callers / purpose |
+| Host | Port | Access |
 | --- | --- | --- |
-| All | 22 | SSH keys only |
-| US1 | 443 | RU1/RU2 source IPs only; VLESS/REALITY exit |
-| RU1 | 80, 443 | Public application HTTP/HTTPS, once restored |
-| RU2 | 443 | Public VLESS/REALITY device entry |
-| RU2 | 80 | ACME HTTP-01 |
-| RU2 | 8443 | HTTPS subscription paths only |
-| RU2 | 9443 | RU1 source IP only; `/v1/models` and `/v1/chat/completions`, with API key |
-| RU2 loopback | 58428 | Private 3x-ui panel, random path and credentials |
-| RU2 loopback | 2096 | Subscription backend; validated Host header |
-| RU2 loopback | 18080 | HTTP proxy used by CLIProxyAPI |
-| RU2 loopback | 8317 | CLIProxyAPI API and management |
-| RU2 loopback | 62789, 11111 | Xray control API and metrics |
-| RU1 Docker network | 18080 | Sidecar HTTP proxy; no host port mapping |
+| RU1 | TCP 80 and 443, UDP 443 | Public application HTTP, HTTPS and HTTP/3 |
+| RU2 | TCP 2053 | Public VLESS/REALITY entry |
+| RU2 | TCP 80 and 8443 | ACME HTTP-01 and HTTPS subscriptions |
+| RU2 loopback | TCP 2096 | Subscription backend |
+| RU2 loopback | TCP 18080 and 18082 | Diagnostic HTTP proxy and Hysteria SOCKS listener |
+| Exit | UDP 24443 | Hysteria from RU2 only |
+| RU1 Docker network | TCP 18080 | Private Xray HTTP proxy |
 
-RU1 also permits UDP 443 for Caddy HTTP/3. The nftables table `inet network_guard` defaults to denying inbound traffic. Its Docker forwarding rules prevent unintended published ports from bypassing the RU1 policy. CLIProxyAPI runs as UID 10001; new outbound connections for that UID are limited to its own localhost API and the localhost proxy. Existing replies are allowed. SSH root login requires a key; password and keyboard-interactive authentication are disabled. Automatic OS security updates are enabled.
+The RU1 and RU2 nftables policies deny inbound traffic by default. RU1 allows Docker forwarding for the Caddy ports. The exit limits Hysteria to RU2's source address and blocks private destination ranges. RU1 and RU2 use key-only SSH.
 
 ## Configuration and access
 
 | Location | Contents |
 | --- | --- |
-| Local `/Users/roman.kutimskii/Documents/ChatGPT/Network` | Private infrastructure source, version pins and setup scripts |
-| Local `.env` | Literal provider bootstrap credentials, mode 0600; never source it |
-| Local `.secrets/access.txt` | Panel links, credentials, subscription, API keys |
-| Local `.secrets/state.json` | Stable UUIDs, REALITY keys, generated secrets |
-| Local `.state/known_hosts` | Pinned SSH host keys |
-| US1 `/etc/xray/config.json` | Exit config; `/usr/local/bin/xray` points to the versioned binary |
+| Local `/Users/roman.kutimskii/Documents/ChatGPT/Network` | Private infrastructure scripts and version pins |
+| Local `.env` | Provider bootstrap credentials with mode 0600 |
+| Local `.secrets/access.txt` | Panel credentials and private subscription URL |
+| Local `.secrets/state.json` | Stable VPN and panel credentials |
+| Local `.state/known_hosts` and `.state/new-exit-known_hosts` | Pinned SSH host keys |
 | RU2 `/etc/x-ui/x-ui.db` | Panel database, clients and core settings |
-| RU2 `/usr/local/x-ui/bin/config.json` | Generated runtime config; edit through the panel/API instead |
-| RU2 `/opt/network/entry-core.json` | Compatibility build pin |
-| RU2 `/opt/cliproxyapi/compose.yml` | Provider service deployment |
-| RU2 `/opt/cliproxyapi/config/config.yaml` | Mutable CLIProxyAPI v8 configuration |
-| RU2 `/opt/cliproxyapi/state` | Provider authentication and management UI state |
-| RU2 `/etc/caddy/Caddyfile` | Subscription/API HTTPS endpoints |
-| All `/etc/network-firewall.nft` | Persistent rules applied by `network-guard.service` |
-| RU1 `/opt/sport-quest/.env.prod` | Fresh database/session secrets, preserved Telegram app settings, new proxy/API routes and the active uploads volume; enable the bot only after the final data refresh |
-| RU1 `/opt/sport-quest/compose.prepare.yml` | Private preparation overlay; app bound only to loopback, public proxy and worker selected explicitly |
+| RU2 `/usr/local/x-ui/bin/config.json` | Runtime configuration generated from the panel |
+| RU2 `/etc/caddy/Caddyfile` | HTTPS subscription frontend |
+| RU2 and exit `/etc/network-hysteria-extra/` | TLS-verified transport configuration |
+| RU1 `/opt/sport-quest/.env.prod` | Production application, proxy and volume settings |
 
-From the Network folder, run `python3 scripts/tunnel.py start`. The panel uses local port 25843 and its private path; CLIProxyAPI management is at `http://127.0.0.1:8317/management.html`. The helper also forwards provider OAuth callback ports 1455, 51121, 54545 and 8085. Stop it with `python3 scripts/tunnel.py stop`. Never expose these management ports publicly.
+Run `python3 scripts/tunnel.py start` from the Network folder for the local 3x-ui forward on port 25843. Use the panel path from the private access file, then close the forward with `python3 scripts/tunnel.py stop`.
 
-The HTTPS subscription format is `https://sub.roman-kutimskii.ru:8443/sub/<private-id>`. Use the actual URL in `.secrets/access.txt`; it is a credential. Replace the earlier Mihomo import with a fresh native VLESS profile using `.secrets/karing-setup.txt`, then reconnect **RU → US**. This format, Cloudflare SNI and minClientVer 1.0.0 match the user’s working reference server at 78.24.217.100. The native subscription passed TCP egress and UDP DNS tests from the Mac, and the user separately confirmed successful access from Karing. The expected exit IP is `89.125.43.209`. Karing should show REALITY, Vision, fingerprint `chrome`, and SNI `www.cloudflare.com`.
-
-To add a VPN client, open the private 3x-ui panel, edit the existing `vpn-entry` inbound, and add a distinct UUID/email/subscription ID with Vision enabled. Keep the outbound routing and transport settings. Use that client's HTTPS subscription URL. Separate subscription IDs make revocation independent. Two-factor authentication was deferred by the user and remains an outstanding action.
+The native VLESS subscription uses `https://sub.roman-kutimskii.ru:8443/sub/<private-id>`. It publishes **🇷🇺 RU → 🇺🇸 US** with exit IP `45.86.68.186`. The Karing profile uses REALITY, Vision, fingerprint `chrome`, and SNI `cloudflare.com`. To add a client, use the managed port-2053 inbound and assign a distinct client UUID, email, and subscription ID with Vision enabled.
 
 ## Application configuration
 
 Set `TELEGRAM_PROXY_URL=http://xray:18080`. The sidecar reads `XRAY_US_ADDRESS`, `XRAY_US_PORT`, `XRAY_CLIENT_UUID`, `XRAY_REALITY_PUBLIC_KEY`, `XRAY_REALITY_SHORT_ID` and `XRAY_REALITY_SERVER_NAME` from the environment. It generates its config in a tmpfs and runs without root privileges or host-published ports.
 
-The repository now defaults to the official OpenAI API: `LLM_BASE_URL=https://api.openai.com` (without `/v1`), `OPENAI_API_KEY` from OpenAI API Platform, and `LLM_MODEL=gpt-6.1-terra`. The application appends `/v1/chat/completions`, sends image data URIs and JSON mode, and uses medium reasoning without temperature. The old `LLM_API_KEY` is deliberately not reused. Set `LLM_PROXY_URL=http://xray:18080` on RU1: the HTTP proxy establishes a CONNECT tunnel through the existing US1 path, while TLS and API authentication terminate at OpenAI. A failed proxy request is retried through the same route; there is no direct fallback.
+The repository now defaults to the official OpenAI API: `LLM_BASE_URL=https://api.openai.com` (without `/v1`), `OPENAI_API_KEY` from OpenAI API Platform, and `LLM_MODEL=gpt-6.1-terra`. The application appends `/v1/chat/completions`, sends image data URIs and JSON mode, and uses medium reasoning without temperature. The old `LLM_API_KEY` is deliberately not reused. Set `LLM_PROXY_URL=http://xray:18080` on RU1: the HTTP proxy establishes a CONNECT tunnel through RU2 and the Hysteria exit, while TLS and API authentication terminate at OpenAI. A failed proxy request is retried through the same route; there is no direct fallback.
 
 For rollout, replace the old `LLM_BASE_URL` and `LLM_MODEL` overrides in `/opt/sport-quest/.env.prod`, supply `OPENAI_API_KEY`, and set `LLM_PROXY_URL`. Both the bot and one-off tools receive these settings. Back up `.env.prod` and `compose.prod.yml` before changing them; keep the backup with the previous image tag for rollback. The old CLIProxyAPI service on RU2 is not used by the bot after this change.
 
-Preflight (2026-11-02): direct requests from RU1 return HTTP 403 (`unsupported_country_region_territory`). An authenticated request from the running RU1 bot container through its existing sidecar → US1 route returned HTTP 200 and a valid JSON completion from `gpt-6.1-terra` at the official endpoint. No application or database relocation is needed.
+The November 9 verification returned HTTP 200 for the authenticated OpenAI model lookup from the running bot through the production proxy.
 
 The final local Terra eval passed all 66/66 cases, including every image fixture, date, step count and bingo field (report precision and recall 100% on this set). The prompt clarifies existing rules for completed construction work and food-only captions after a workout. Scoring thresholds are unchanged. Local lint and all 164 unit tests pass; source type checking passes when excluding stale `.next/dev/types` references to removed gallery/vote pages.
 
@@ -108,9 +87,9 @@ Known performance issue: bulk HTTPS downloads through the RU–US tunnels were s
 
 Use the Network folder's checksum-verified setup scripts. Preserve `.secrets/`, the known-host file, panel database and provider state when rerunning them. The RU2 installer reapplies the exact entry-core pin, so upgrading 3x-ui cannot silently replace it with an incompatible bundled core. Before upgrades, read release notes, back up mutable state, validate configs, and run both modern-Xray and sing-box connection checks. Avoid 3x-ui's direct core-update button until the intended version passes those checks.
 
-For an entry UUID rotation, add and test a replacement client before removing the old one. Revoke its subscription ID as well if that URL was exposed. For RU1/RU2 exit credentials, add the new UUID on US1 first, update one caller, test it, then remove the old UUID. REALITY key rotation requires coordinated server/client public-key and short-ID updates; stage an additional inbound/client path rather than overwriting the only working path. Keep SSH/firewall changes behind the documented explicit approval and timed rollback process.
+For an entry UUID rotation, add and test a replacement client before removing the old one. Revoke its subscription ID as well if that URL was exposed. Update the RU1 sidecar with the replacement UUID if it shares the entry credential. REALITY key rotation requires coordinated server/client public-key and short-ID updates; stage an additional inbound/client path rather than overwriting the only working path. Keep SSH/firewall changes behind the documented explicit approval and timed rollback process.
 
-Before changes, make a consistent SQLite backup of `/etc/x-ui/x-ui.db` using SQLite's backup API. Preserve CLIProxyAPI config and authentication state, Caddy state under `/var/lib/caddy/.local/share/caddy`, US1 Xray config, firewall files, systemd units and version/build manifests. These contain secrets and need owner-only access and encrypted off-host storage. The entry changes created local-to-RU2 rollback backups under `/opt/network/backups`; scheduled off-host backups are not configured yet.
+Before changes, make a consistent SQLite backup of `/etc/x-ui/x-ui.db` using SQLite's backup API. Preserve Caddy state under `/var/lib/caddy/.local/share/caddy`, the Hysteria configs, firewall files, systemd units and build manifests. These contain secrets and need owner-only access and encrypted off-host storage. The entry changes created local-to-RU2 rollback backups under `/opt/network/backups`; scheduled off-host backups are not configured yet.
 
 After the app is restored, back up Postgres with `pg_dump -Fc`, plus the uploads volume and `.env.prod`. A consistent migration snapshot requires quiescing writers or coordinating database/uploads timestamps. Validate backups by restoring into a separate database/volume; never restore directly over production as a test. Retain both the initial and fresh migration snapshots. A staging snapshot taken while the old bot is running is not a final cutover snapshot; freeze old writers before the final refresh.
 

@@ -171,7 +171,7 @@ Messages in any chat other than the configured group are ignored; a private mess
    Endpoint `POST {LLM_BASE_URL}/v1/chat/completions`, `Authorization: Bearer {OPENAI_API_KEY}`,
    model `gpt-6.1-terra`, images as `image_url` data URIs **[decided: vision on]**.
    Use `reasoning_effort: "medium"` without `temperature`; keep the client behind one small interface.
-   Production sets `LLM_PROXY_URL=http://xray:18080` for HTTPS CONNECT through US1; the API host remains `api.openai.com`.
+   Production sets `LLM_PROXY_URL=http://xray:18080` for HTTPS CONNECT through the RU2 VPN route. TLS terminates at `api.openai.com`.
 
 ## 4. Architecture
 
